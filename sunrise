@@ -1,0 +1,106 @@
+#!/usr/bin/perl
+
+# ==========================================================================
+#
+# Output the time of sunrise or sunset. Generally for use with the 'at'
+# command.
+#
+# Copyright 2020, Neill Bell
+#
+# ==========================================================================
+
+use strict;
+use warnings;
+use DateTime::Event::Sunrise;
+use DateTime::Format::Strptime;
+use DateTime::Format::Natural;
+use Getopt::Long;
+
+my $sunrise;
+my $sunset;
+my $offsetSeconds = 0;
+my $latitude = $ENV{SUNRISE_LAT};
+my $longitude = $ENV{SUNRISE_LONG};
+my $timezone = "local";
+my $outputFormat = "%I:%M %p";
+my $date = "now";
+  
+GetOptions("lat=f" => \$latitude,
+           "long=f" => \$longitude,
+           "sunrise" => \$sunrise,
+           "sunset" => \$sunset,
+           "offset=i" => \$offsetSeconds,
+           "format=s" => \$outputFormat,
+           "timezone=s" => \$timezone,
+           "date=s" => \$date,
+           "help" => sub { usage() }
+  ) or usage();
+
+die "must set latitude and longitude\n" if !$latitude || !$longitude;
+die "must set only one of sunrise or sunset\n" if $sunrise && $sunset;
+
+# Create a new Sunrise object
+my $sundt = DateTime::Event::Sunrise ->new(latitude  => $latitude,
+                                           longitude => $longitude,
+                                           precise   => '1');
+
+# Parse the date
+my $parser = DateTime::Format::Natural->new(time_zone => $timezone);
+
+my $dt = $parser->parse_datetime($date);
+
+die "unable to parse date: " . $parser->error . "\n" if !$parser->success;
+
+my $sun;
+
+# Compute the sunrise or sunset
+if ($sunrise || (!$sunrise && !$sunset))
+{
+  $sun = $sundt->sunrise_datetime($dt);
+}
+else
+{
+  $sun = $sundt->sunset_datetime($dt);
+}
+
+# Apply the requested offset to the sunrise or sunset
+my $offsetDuration = DateTime::Duration->new(seconds => $offsetSeconds);
+
+$sun->add($offsetDuration);
+
+# Format the time as requested
+my $format = new DateTime::Format::Strptime(pattern => $outputFormat);
+
+print $format->format_datetime($sun) . "\n";
+
+#
+# Print usage and exit
+#
+sub usage
+{
+  print STDERR <<EOF;
+  
+    Print out sunrise or sunset times for use with the 'at' command.
+    
+    usage: sunrise [options]
+
+    options:
+      --date            The date for which to calculate the sunrise
+      --format format   The format (strptime) to output for the time. It defaults
+                        to '%I:%M %p', which works well with the 'at' command
+      --help            Print this text
+      --lat latitude    The latitude for which to calculate (env var SUNRISE_LAT)
+      --long longitude  The longitude for which to calculate (env var SUNRISE_LONG)
+      --offset offset   The offset (+\/- in seconds) from the sunrise/sunset time
+      --sunrise         Print the time of sunrise (default)
+      --sunset          Print the time of sunset
+      --timezone name   The timezone under consideration (defaults to 'local')
+
+    example:
+
+      # Print the time for one hour before sunset somewhere in Wichita, Kansas
+      sunrise --sunset --lat 37.642824 --long -97.326226 --timezone 'CST6CDT' --offset -3600
+
+EOF
+  exit;
+}
