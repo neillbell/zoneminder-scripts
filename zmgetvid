@@ -1,0 +1,333 @@
+#!/usr/bin/perl
+
+# ==========================================================================
+#
+# A script to fetch video from ZoneMinder for a series of events.
+#
+# Copyright 2020, Neill Bell
+#
+# ==========================================================================
+
+use strict;
+use warnings;
+use Data::Dumper;
+use JSON;
+use WWW::Mechanize;
+use Getopt::Long;
+use HTTP::Status qw(status_message);
+use DateTime::Format::Natural;
+use DateTime::Format::Strptime;
+use LWP::Simple qw/ getstore is_error /;
+use File::Temp qw/ tempfile tempdir /;
+
+my $debug;
+my $zmapi = $ENV{ZMAPI};
+my $zmuser = $ENV{ZMUSER};
+my $zmpass = $ENV{ZMPASS};
+my @monitorKeys;
+my $fromTime;
+my $toTime;
+my $speed;
+my $outputFile;
+my $monitorsById;
+my $monitorsByName;
+my @events;
+
+Getopt::Long::Configure();
+
+GetOptions("debug" => \$debug,
+           "zmapi=s" => \$zmapi,
+           "zmuser=s"  => \$zmuser,
+           "zmpass=s"  => \$zmpass,
+           "from=s"  => \$fromTime,
+           "to=s"  => \$toTime,
+           "monitor=s"  => \@monitorKeys,
+           "speed=f" => \$speed,
+           "output=s" => \$outputFile,
+           "help" => sub { usage() }
+           ) or usage();
+
+die "ZM API address not specifified\n" unless $zmapi;
+die "ZM user not specified\n" unless $zmuser;
+die "ZM password not specified\n" unless $zmpass;
+die "start time not specified\n" if !defined $fromTime;
+
+$toTime = "now" if !defined $toTime;
+
+my $agent = WWW::Mechanize->new(autocheck => 0);
+
+# Log into Zoneminder.
+my $response = $agent->post("$zmapi/host/login.json",
+                            [user => $zmuser,
+                             pass => $zmpass]);
+
+logger("LOGIN: " . Dumper($response));
+
+if (!$agent->success())
+{
+  my $status = status_message($agent->status());
+  
+  die "login failed: $status\n";
+}
+
+# Retrieve the access token from the response, if present, and use it
+# to make a parameter to append to web requests.
+my $accessToken = decode_json($response->content)->{access_token};
+
+# Get a list of all the monitors
+getMonitors();
+
+# Get a list of events as specified by the command line parameters
+getEvents();
+
+my $zm = $zmapi;
+$zm =~ s/\/api//;
+
+# Collect the input video in a temporary directory that will be deleted
+# at exit.
+my $tmpdir = tempdir(CLEANUP => 1);
+
+# Video is input to ffmpeg using a file containing a list of video files.
+my $fileListName = $tmpdir . "/filelist.txt";
+
+open(FLIST, '>', $fileListName) or die "can't open $fileListName\n";
+
+for my $event (@events)
+{
+  my $mid = $event->{MonitorId};
+  my $eid = $event->{Id};
+
+  my $monitor = $monitorsById->{$mid};
+
+  my $monName = $monitor->{Name};
+
+  my $from = $event->{StartTime};
+
+  # If the user didn't specify an output file name, then make one up
+  if (!defined $outputFile)
+  {
+    $outputFile = "$from" . "_$eid.mp4";
+    $outputFile =~ s/\s+/_/g;    
+  }
+
+  # Print the details about the event we found.
+  printf "%-15s%-8s%19s: %s\n", $monName, $event->{Id}, $from, $event->{Notes};
+
+  # Create an URL to fetch the video for the event
+  my $url = $zm . "/index.php?view=view_video&eid=$eid" . ($accessToken ? "&token=$accessToken" : "");
+
+  logger($url);
+
+  # Specify the file name for this video  
+  my $filename = $from . "_" . $event->{Id} . ".mp4";
+  $filename =~ s/\s+/_/g;
+
+  logger("filename: $tmpdir/$filename\n");
+
+  # Fetch the video
+  my $code = getstore($url, $tmpdir . "/" . $filename);
+
+  # Write the video file name into the file list file.
+  print FLIST "file '$tmpdir/$filename'\n";
+  
+  if (is_error($code))
+  {
+    print "code = $code\n";
+    exit 1;
+  }
+}
+
+close(FLIST);
+
+print "found " . @events . " event" . (@events == 1 ? "" : "s") . "\n" if @events > 0;
+
+# Bail if we found no events
+exit if !@events;
+
+# If there is a speed multiplier, add a filter to do that. Otherwise,
+# use the 'copy' command.
+my $option;
+
+if (defined $speed)
+{
+  my $ratio = 1/$speed;
+
+  $option = "-filter:v \"setpts=$ratio*PTS\"";
+}
+else
+{
+  $option = "-c copy";
+}
+
+my $cmd = "ffmpeg -y -f concat -safe 0 -i $fileListName $option $outputFile";
+
+logger("executing: $cmd");
+
+system($cmd);
+
+
+# Query the API for a list of monitors and zones and create a data
+# structure for each monitor and associated zones.
+#
+# Also create global hashes that can be used to look up monitors
+# by ID or name.
+sub getMonitors
+{
+  $monitorsById = {};
+  $monitorsByName = {};
+
+  my $monResult = getJson($agent, $zmapi . "/monitors.json" . ($accessToken ? "?token=$accessToken" : ""));
+
+  foreach my $mon (@{$monResult->{monitors}})
+  {
+    my $monitor = $mon->{Monitor};
+    my $mid = $monitor->{Id};
+    my $mName = $monitor->{Name};
+
+    $monitorsById->{$mid} = $monitor;
+    $monitorsByName->{$mName} = $monitor;
+
+    $monitor->{zonesById} = {};
+    $monitor->{zonesByName} = {};
+  }
+}
+
+# Translate a key (either a numerical ID or a name) into a monitor ID
+sub getMonitorIdByKey
+{
+  my ($key) = @_;
+
+  die "monitor not specified\n" if !defined $key;
+
+  my $monitor = $monitorsById->{$key};
+
+  $monitor = $monitorsByName->{$key} if !$monitor;
+
+  die "monitor $key is not present\n" if !$monitor;
+
+  return $monitor->{Id};
+}
+
+# Requests an URL and converts the JSON response to a Perl data structure
+sub getJson
+{
+  my ($agent, $uri) = @_;
+  my $result;
+
+  my $response = $agent->get($uri);
+
+  #logger("JSON GET: " . Dumper($response));
+
+  if (!$agent->success())
+  {
+    my $status = status_message($agent->status());
+    
+    die "get JSON failed: $status\n";
+  }
+  
+  my $jsonTxt = $agent->content();
+  
+  $result = decode_json($jsonTxt);
+
+  return $result;
+}
+
+sub getEvents
+{
+  my $page = 1;
+  
+  # Create a formatter that makes time strings that MySQL likes
+  my $format = new DateTime::Format::Strptime(pattern => "%Y-%m-%d %H:%M:%S");
+
+  # Initialize our natural language time parser
+  my $parser = DateTime::Format::Natural->new(time_zone => 'local');
+
+  # Parse the time to start looking for events and stop looking for events.
+  my $from = $parser->parse_datetime($fromTime);
+  my $to = $parser->parse_datetime($toTime);
+
+  die "start time must be before end time\n" if (DateTime->compare($from, $to) == 1);
+  
+  # Build the JSON URL to send to ZoneMinder
+  my $url = $zmapi . "/events/index";
+
+  $url .= "/StartTime>=:" . $format->format_datetime($from);
+  $url .= "/StartTime<=:" . $format->format_datetime($to);
+
+  if (@monitorKeys)
+  {
+    for my $monitorKey (@monitorKeys)
+    {
+      my $mid = getMonitorIdByKey($monitorKey);
+    
+      $url .= "/MonitorId:$mid";
+    }
+  }
+
+  $url .= ".json?&sort=StartTime&direction=asc";
+
+  my $fullUrl = $url . "&page=$page";
+
+  logger($fullUrl);
+  
+  my $result = getJson($agent, $fullUrl . ($accessToken ? "&token=$accessToken" : ""));
+
+  my $pageCount = $result->{pagination}->{pageCount};
+
+  handlePage($result->{events});
+
+  for (my $i = 2; $i <= $pageCount; $i++)
+  {
+    $fullUrl = $url . "&page=$i";
+    
+    logger($fullUrl);
+  
+    $result = getJson($agent, $fullUrl . ($accessToken ? "&token=$accessToken" : ""));
+
+    handlePage($result->{events});
+  }
+}
+
+sub handlePage
+{
+  my ($evArr) = @_;
+
+  for my $ev (@$evArr)
+  {
+    push(@events, $ev->{Event});
+  }
+}
+
+sub logger
+{
+  my ($line) = @_;
+
+  print "$line\n" if defined $debug;
+}
+
+#
+# Print usage and exit
+#
+sub usage
+{
+  print STDERR <<EOF;
+  
+  Fetch video from ZoneMinder for a series of events.
+        
+    usage: zmgetvid [option]
+
+    options:
+      --debug            Enable debug output
+      --help             Print this text
+      --from=TIME        The time to start looking for events
+      --to=TIME          The time to stop looking for events (defaults to now)
+      --monitor=MID      The monitor to use (name or ID) (can use multiple times)
+      --speed=FLOAT      A speed multiplier. Will re-encode instead of copy.
+      --url              Print the API URL used to query ZoneMinder
+      --zmapi=API        The ZoneMinder API address (env var ZMAPI)
+      --zmpass=PASSWORD  The ZoneMinder password (env var ZMPASS)
+      --zmuser=USERNAME  The ZoneMinder user name  (env var ZMUSER)
+    
+EOF
+  exit;
+}

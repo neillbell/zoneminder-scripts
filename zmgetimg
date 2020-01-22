@@ -1,0 +1,400 @@
+#!/usr/bin/perl
+
+# ==========================================================================
+#
+# A script to fetch images from ZoneMinder for a series of events and view
+# or save them.
+#
+# Copyright 2020, Neill Bell
+#
+# ==========================================================================
+
+use strict;
+use warnings;
+use Data::Dumper;
+use JSON;
+use WWW::Mechanize;
+use Getopt::Long;
+use HTTP::Status qw(status_message);
+use DateTime::Format::Natural;
+use DateTime::Format::Strptime;
+use LWP::Simple qw/ getstore is_error /;
+use File::Temp qw/ tempfile tempdir /;
+
+my $debug;
+my $view;
+my $save;
+my $video;
+my $zmapi = $ENV{ZMAPI};
+my $zmuser = $ENV{ZMUSER};
+my $zmpass = $ENV{ZMPASS};
+my $viewer = "eog";
+my $type = "snapshot";
+my @monitorNames;
+my $search;
+my $fromTime;
+my $toTime;
+my $infps = 1;
+my $outfps = 25;
+my $monitorsById;
+my $monitorsByName;
+my @events;
+
+my %types = ("alarm" => 1,
+             "objdetect" => 1,
+             "snapshot" => 1);
+
+Getopt::Long::Configure();
+
+GetOptions("debug" => \$debug,
+           "zmapi=s" => \$zmapi,
+           "zmuser=s"  => \$zmuser,
+           "zmpass=s"  => \$zmpass,
+           "type=s"  => \$type,
+           "from=s"  => \$fromTime,
+           "to=s"  => \$toTime,
+           "monitor=s"  => \@monitorNames,
+           "search=s"  => \$search,
+           "view"  => \$view,
+           "save"  => \$save,
+           "video=s"  => \$video,
+           "infps" => \$infps,
+           "outfps" => \$outfps,
+           "viewer=s"  => \$viewer,
+           "help" => sub { usage() }
+           ) or usage();
+
+die "ZM API address not specifified\n" unless $zmapi;
+die "ZM user not specified\n" unless $zmuser;
+die "ZM password not specified\n" unless $zmpass;
+die "start time not specified\n" if !defined $fromTime;
+die "cannot specify both view and save\n" if $view && $save;
+die "cannot specify both view and video\n" if $view && $video;
+die "type must be one of: " . join(", ", keys %types) . "\n" if $type && !$types{$type};
+
+$toTime = "now" if !defined $toTime;
+
+my $agent = WWW::Mechanize->new(autocheck => 0);
+
+# Log into Zoneminder.
+my $response = $agent->post("$zmapi/host/login.json",
+                            [user => $zmuser,
+                             pass => $zmpass]);
+
+#logger("LOGIN: " . Dumper($response));
+
+if (!$agent->success())
+{
+  my $status = status_message($agent->status());
+  
+  die "login failed: $status\n";
+}
+
+# Retrieve the access token from the response, if present, and use it
+# to make a parameter to append to web requests.
+my $accessToken = decode_json($response->content)->{access_token};
+
+# Get a list of all the monitors
+getMonitors();
+
+# Get a list of events as specified by the command line parameters
+getEvents();
+
+my $index = 0;
+my @fileNames;
+my $tmpdir;
+
+$tmpdir = tempdir( CLEANUP => 1 ) if $view || $video;
+
+for my $event (@events)
+{
+  my $mid = $event->{MonitorId};
+  my $eid = $event->{Id};
+
+  my $monitor = $monitorsById->{$mid};
+
+  my $monName = $monitor->{Name};
+
+  my $from = $event->{StartTime};
+
+  printf "%-15s%-8s%19s: %s\n", $monName, $event->{Id}, $from, $event->{Notes};
+
+  my $zm = $zmapi;
+  $zm =~ s/\/api//;
+
+  my $url = $zm . "/index.php?view=image&eid=$eid&fid=$type" . ($accessToken ? "&token=$accessToken" : "")
+    if $save || $view || $video;
+  
+  if ($view || $video)
+  {
+    my $template = $from . "_" . $monName . "_" . $event->{Id} . "_XXXX";
+    $template =~ s/\s+/_/g;
+    my ($fh, $filename) = tempfile($template, DIR => $tmpdir, SUFFIX => '.jpg');
+
+    logger("url = $url");
+    logger("filename = $filename");
+    
+    my $code = getstore($url, $filename);
+
+    if (is_error($code))
+    {
+      print "error: code = $code\n" ;
+      next;
+    }
+
+    push(@fileNames, $filename);
+  }
+  elsif ($save)
+  {
+    my $template = $from . "_" . $monName . "_" . $event->{Id} . "_%04d.jpg";
+    $template =~ s/\s+/_/g;
+    my $filename = sprintf "$template", $index;
+
+    logger("url = $url");
+    logger("filename = $filename");
+    
+    my $code = getstore($url, $filename);
+
+    if (is_error($code))
+    {
+      print "error: code = $code\n" ;
+      next;
+    }
+
+    push(@fileNames, $filename);
+  }
+
+  $index++;    
+}
+
+print "found $index event" . ($index == 1 ? "" : "s") . "\n" if $index > 0;
+
+if ($view && @events)
+{
+  my $cmd = "$viewer $tmpdir > /dev/null 2>&1";
+
+  system($cmd);
+}
+
+if ($video && @events)
+{
+  my $destdir;
+
+  if (defined $tmpdir)
+  {
+    $destdir = $tmpdir;
+  }
+  else
+  {
+    $destdir = ".";
+  }
+
+  my $listfile = $destdir . "/listfile" . $$ . ".txt";
+
+  open(FILELIST, '>', $listfile) or die "can't open $listfile\n";
+
+  foreach my $fileName (@fileNames)
+  {
+    print FILELIST "file '$fileName'\n";
+  }
+  
+  close(FILELIST);
+
+  my $cmd = "ffmpeg -y -r $infps -f concat -safe 0 -i $listfile -c:v libx264 -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2,fps=25,format=yuv420p\" $video";
+
+  logger("executing: $cmd");
+
+  system($cmd);
+}
+
+# Query the API for a list of monitors and zones and create a data
+# structure for each monitor and associated zones.
+#
+# Also create global hashes that can be used to look up monitors
+# by ID or name.
+sub getMonitors
+{
+  $monitorsById = {};
+  $monitorsByName = {};
+
+  my $monResult = getJson($agent, $zmapi . "/monitors.json" . ($accessToken ? "?token=$accessToken" : ""));
+
+  foreach my $mon (@{$monResult->{monitors}})
+  {
+    my $monitor = $mon->{Monitor};
+    my $mid = $monitor->{Id};
+    my $mName = $monitor->{Name};
+
+    $monitorsById->{$mid} = $monitor;
+    $monitorsByName->{$mName} = $monitor;
+
+    $monitor->{zonesById} = {};
+    $monitor->{zonesByName} = {};
+  }
+}
+
+# Translate a key (either a numerical ID or a name) into a monitor ID
+sub getMonitorIdByKey
+{
+  my ($key) = @_;
+
+  die "monitor not specified\n" if !defined $key;
+
+  my $monitor = $monitorsById->{$key};
+
+  $monitor = $monitorsByName->{$key} if !$monitor;
+
+  die "monitor $key is not present\n" if !$monitor;
+
+  return $monitor->{Id};
+}
+
+# Requests an URL and converts the JSON response to a Perl data structure
+sub getJson
+{
+  my ($agent, $uri) = @_;
+  my $result;
+
+  my $response = $agent->get($uri);
+
+  #logger("JSON GET: " . Dumper($response));
+
+  if (!$agent->success())
+  {
+    my $status = status_message($agent->status());
+    
+    die "get JSON failed: $status\n";
+  }
+  
+  my $jsonTxt = $agent->content();
+  
+  $result = decode_json($jsonTxt);
+
+  return $result;
+}
+
+sub getEvents
+{
+  my $page = 1;
+  
+  # Create a formatter that makes time strings that MySQL likes
+  my $format = new DateTime::Format::Strptime(pattern => "%Y-%m-%d %H:%M:%S");
+
+  # Initialize our natural language time parser
+  my $parser = DateTime::Format::Natural->new(time_zone => 'local');
+
+  # Parse the time to start looking for events and stop looking for events.
+  my $from = $parser->parse_datetime($fromTime);
+  my $to = $parser->parse_datetime($toTime);
+
+  die "start time must be before end time\n" if (DateTime->compare($from, $to) == 1);
+  
+  # Build the JSON URL to send to ZoneMinder
+  my $url = $zmapi . "/events/index";
+
+  $url .= "/StartTime>=:" . $format->format_datetime($from);
+  $url .= "/StartTime<=:" . $format->format_datetime($to);
+
+  if (@monitorNames)
+  {
+    for my $monitorName (@monitorNames)
+    {
+      my $mid = getMonitorIdByKey($monitorName);
+    
+      $url .= "/MonitorId:$mid";
+    }
+  }
+
+  if ($search)
+  {
+    my $invert =  0;
+    if ($search =~ /^!/)
+    {
+      $invert = 1;
+      $search =~ s/^!//;
+    }
+
+    if ($invert)
+    {
+      $url .= "/Notes NOT REGEXP:$search" if $search;
+    }
+    else
+    {
+      $url .= "/Notes REGEXP:$search" if $search;
+    }
+  }
+  
+  $url .= ".json?&sort=StartTime&direction=asc";
+
+  my $fullUrl = $url . "&page=$page";
+
+  logger($fullUrl);
+  
+  my $result = getJson($agent, $fullUrl . ($accessToken ? "&token=$accessToken" : ""));
+
+  my $pageCount = $result->{pagination}->{pageCount};
+
+  handlePage($result->{events});
+
+  for (my $i = 2; $i <= $pageCount; $i++)
+  {
+    $fullUrl = $url . "&page=$i";
+    
+    logger($fullUrl);
+    
+    $result = getJson($agent, $fullUrl . ($accessToken ? "&token=$accessToken" : ""));
+
+    handlePage($result->{events});
+  }
+}
+
+sub handlePage
+{
+  my ($evArr) = @_;
+
+  for my $ev (@$evArr)
+  {
+    push(@events, $ev->{Event});
+  }
+}
+
+sub logger
+{
+  my ($line) = @_;
+
+  print "$line\n" if defined $debug;
+}
+
+#
+# Print usage and exit
+#
+sub usage
+{
+  print STDERR <<EOF;
+  
+  Fetch images from ZoneMinder for a series of events and view or save them.
+    
+    usage: zmgetimg [option]
+
+    options:
+      --debug            Enable debug output
+      --help             Print this text
+      --from=TIME        The time to start looking for events
+      --to=TIME          The time to stop looking for events (defaults to now)
+      --infps            Number of input images per second for video mode (default 1)
+      --outfps           Frame rate for output video (default 25)
+      --monitor=MID      The monitor to use (name or ID)
+      --search=STRING    Only include events that match the search term in Notes (start with ! to invert)
+      --save             Save the image files in the currect directory.     
+      --type             The type of image to get (alarm, objdetect, snapshot)     
+      --url              Print the API URL used to query ZoneMinder
+      --video=STRING     Create a video from the images using the given file name
+      --view             Create a temporary directory, store the images and call a viewer
+      --viewer=VIEWER    Specify the program to use for viewing events (default is eog)
+      --zmapi=API        The ZoneMinder API address (env var ZMAPI)
+      --zmpass=PASSWORD  The ZoneMinder password (env var ZMPASS)
+      --zmuser=USERNAME  The ZoneMinder user name  (env var ZMUSER)
+    
+EOF
+  exit;
+}
