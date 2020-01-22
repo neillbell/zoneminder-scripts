@@ -1,6 +1,6 @@
 Project
 ----
-zoneminder-scripts is a set of scripts for controlling querying the ZoneMinder surveillance software system.
+zoneminder-scripts is a set of scripts for controlling the ZoneMinder surveillance software system.
 
 It was mostly created in order to learn about managing github repositories, but the scripts may be useful to ZoneMinder users. I use them myself on a daily basis.
 
