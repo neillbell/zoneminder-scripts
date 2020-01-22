@@ -7,6 +7,8 @@ It was mostly created in order to learn about managing github repositories, but 
 The Scripts
 ----
 
+* **dosunrise** example script for using the sunrise script and 'at' to control ZoneMinder.
+
 * **sunrise** print out the time of sunrise and sunset. Useful with the 'at' command.
 
 * **zmctrl** read and write parameters to ZoneMinder monitors and zones.
