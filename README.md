@@ -7,6 +7,8 @@ It was mostly created in order to learn about managing github repositories, but 
 The Scripts
 ----
 
+* **sunrise** print out the time of sunrise and sunset. Useful with the 'at' command.
+
 * **zmctrl** read and write parameters to ZoneMinder monitors and zones.
 
 * **zmgetimg** read images from ZoneMinder for a specified time period. Images can be viewed, saved or concatenated into a video.
