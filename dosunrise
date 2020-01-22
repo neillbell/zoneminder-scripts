@@ -1,0 +1,113 @@
+#!/bin/sh
+
+# ==========================================================================
+#
+# Example script similar to what I use for controlling the zone setting on
+# my Zoneminder system. I run this script at 1:00am using cron.
+#
+# ==========================================================================
+
+PATH="$PATH:/home/me/bin"
+export ZMAPI="https://example.org/zm/api/"
+export ZMUSER="username"
+export ZMPASS="password"
+export SUNRISE_LAT="37.642824"
+export SUNRISE_LONG="-97.326226"
+
+# at sunrise
+at `sunrise --sunrise` >/dev/null 2>&1 <<EOF
+# Squirrel
+zmctrl set Critters Squirrel MinAlarmPixels:4000   \
+                             MaxAlarmPixels:66000  \
+                             MinFilterPixels:3000  \
+                             MaxFilterPixels:12000 \
+                             MinBlobPixels:1000    \
+                             MaxBlobPixels:6000    \
+                             MinPixelThreshold:20
+
+# Lawn
+zmctrl set Critters Lawn MinAlarmPixels:4000   \
+                         MaxAlarmPixels:66000  \
+                         MinFilterPixels:3000  \
+                         MaxFilterPixels:12000 \
+                         MinBlobPixels:1000    \
+                         MaxBlobPixels:6000    \
+                         MinPixelThreshold:25
+
+# Lawn2
+zmctrl set Critters Lawn2 MinAlarmPixels:4000   \
+                          MaxAlarmPixels:36000  \
+                          MinFilterPixels:3000  \
+                          MaxFilterPixels:12000 \
+                          MinBlobPixels:1000    \
+                          MaxBlobPixels:6000    \
+                          MinPixelThreshold:25
+
+# Flower Bed
+zmctrl set Critters FlowerBed MinAlarmPixels:4000   \
+                              MaxAlarmPixels:66000  \
+                              MinFilterPixels:3000  \
+                              MaxFilterPixels:12000 \
+                              MinBlobPixels:1000    \
+                              MaxBlobPixels:6000    \
+                              MinPixelThreshold:25
+
+zmctrl set Critters Function:Modect
+EOF
+
+# 3 hours after sunrise
+at `sunrise --sunrise --offset 10800` >/dev/null 2>&1 <<EOF
+zmctrl set Patio Patio MinPixelThreshold:60
+zmctrl set Patio Doorway MinPixelThreshold:60
+zmctrl set Patio Grill MinPixelThreshold:60
+zmctrl set Patio Function:Modect
+EOF
+
+# 1 hour before sunset
+at `sunrise --sunset --offset -3600` >/dev/null 2>&1 <<EOF
+zmctrl set Patio Patio MinPixelThreshold:20
+zmctrl set Patio Grill MinPixelThreshold:20
+zmctrl set Patio Doorway MinPixelThreshold:20
+zmctrl set Patio Function:Modect
+EOF
+
+# at sunset
+at `sunrise --sunset` >/dev/null 2>&1 <<EOF
+# Squirrel
+zmctrl set Critters Squirrel MinAlarmPixels:200   \
+                             MaxAlarmPixels:300   \
+                             MinFilterPixels:100  \
+                             MaxFilterPixels:200  \
+                             MinBlobPixels:20     \
+                             MaxBlobPixels:50     \
+                             MinPixelThreshold:10
+
+# Lawn
+zmctrl set Critters Lawn MinAlarmPixels:200   \
+                         MaxAlarmPixels:300   \
+                         MinFilterPixels:100  \
+                         MaxFilterPixels:200  \
+                         MinBlobPixels:20     \
+                         MaxBlobPixels:50     \
+                         MinPixelThreshold:10
+
+# Lawn2
+zmctrl set Critters Lawn2 MinAlarmPixels:200   \
+                          MaxAlarmPixels:300   \
+                          MinFilterPixels:100  \
+                          MaxFilterPixels:200  \
+                          MinBlobPixels:20     \
+                          MaxBlobPixels:50     \
+                          MinPixelThreshold:10
+
+# Flower Bed
+zmctrl set Critters FlowerBed MinAlarmPixels:200   \
+                              MaxAlarmPixels:300   \
+                              MinFilterPixels:100  \
+                              MaxFilterPixels:300  \
+                              MinBlobPixels:20     \
+                              MaxBlobPixels:50     \
+                              MinPixelThreshold:10
+
+zmctrl set Critters Function:Modect
+EOF
