@@ -31,6 +31,7 @@ my $speed;
 my $outputFile;
 my $monitorsById;
 my $monitorsByName;
+my $outfps = "";
 my @events;
 
 Getopt::Long::Configure();
@@ -44,6 +45,7 @@ GetOptions("debug" => \$debug,
            "monitor=s"  => \@monitorKeys,
            "speed=f" => \$speed,
            "output=s" => \$outputFile,
+           "outfps=i" => \$outfps,
            "help" => sub { usage() }
            ) or usage();
 
@@ -85,9 +87,9 @@ $zm =~ s/\/api//;
 
 # Collect the input video in a temporary directory that will be deleted
 # at exit.
-my $tmpdir = tempdir(CLEANUP => 1);
+my $tmpdir = tempdir(CLEANUP => $debug ? 0 : 1);
 
-# Video is input to ffmpeg using a file containing a list of video files.
+# Video is input to ffmpeg using a file containing a list of video file names.
 my $fileListName = $tmpdir . "/filelist.txt";
 
 open(FLIST, '>', $fileListName) or die "can't open $fileListName\n";
@@ -127,17 +129,17 @@ for my $event (@events)
   # Fetch the video
   my $code = getstore($url, $tmpdir . "/" . $filename);
 
-  # Write the video file name into the file list file.
-  print FLIST "file '$tmpdir/$filename'\n";
-  
   if (is_error($code))
   {
     print "code = $code\n";
     exit 1;
   }
+
+  # Write the video file name into the file list file.
+  print FLIST "file '$tmpdir/$filename'\n";  
 }
 
-close(FLIST);
+close(FLIST) or warn "close failed: $!";
 
 print "found " . @events . " event" . (@events == 1 ? "" : "s") . "\n" if @events > 0;
 
@@ -159,7 +161,9 @@ else
   $option = "-c copy";
 }
 
-my $cmd = "ffmpeg -y -f concat -safe 0 -i $fileListName $option $outputFile";
+$outfps = "-r $outfps" if $outfps ne "";
+
+my $cmd = "ffmpeg -y -f concat -safe 0 -i $fileListName $option $outfps $outputFile";
 
 logger("executing: $cmd");
 
@@ -234,8 +238,6 @@ sub getJson
 
 sub getEvents
 {
-  my $page = 1;
-  
   # Create a formatter that makes time strings that MySQL likes
   my $format = new DateTime::Format::Strptime(pattern => "%Y-%m-%d %H:%M:%S");
 
@@ -266,7 +268,7 @@ sub getEvents
 
   $url .= ".json?&sort=StartTime&direction=asc";
 
-  my $fullUrl = $url . "&page=$page";
+  my $fullUrl = $url . "&page=1";
 
   logger($fullUrl);
   
@@ -323,7 +325,6 @@ sub usage
       --to=TIME          The time to stop looking for events (defaults to now)
       --monitor=MID      The monitor to use (name or ID) (can use multiple times)
       --speed=FLOAT      A speed multiplier. Will re-encode instead of copy.
-      --url              Print the API URL used to query ZoneMinder
       --zmapi=API        The ZoneMinder API address (env var ZMAPI)
       --zmpass=PASSWORD  The ZoneMinder password (env var ZMPASS)
       --zmuser=USERNAME  The ZoneMinder user name  (env var ZMUSER)
