@@ -387,7 +387,6 @@ sub usage
       --search=STRING    Only include events that match the search term in Notes (start with ! to invert)
       --save             Save the image files in the currect directory.     
       --type             The type of image to get (alarm, objdetect, snapshot)     
-      --url              Print the API URL used to query ZoneMinder
       --video=STRING     Create a video from the images using the given file name
       --view             Create a temporary directory, store the images and call a viewer
       --viewer=VIEWER    Specify the program to use for viewing events (default is eog)
