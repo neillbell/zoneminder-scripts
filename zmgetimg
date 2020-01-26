@@ -227,9 +227,6 @@ sub getMonitors
 
     $monitorsById->{$mid} = $monitor;
     $monitorsByName->{$mName} = $monitor;
-
-    $monitor->{zonesById} = {};
-    $monitor->{zonesByName} = {};
   }
 }
 
