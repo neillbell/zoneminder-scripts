@@ -45,7 +45,7 @@ GetOptions("debug" => \$debug,
            "monitor=s"  => \@monitorKeys,
            "speed=f" => \$speed,
            "output=s" => \$outputFile,
-           "outfps=i" => \$outfps,
+           "outfps=f" => \$outfps,
            "help" => sub { usage() }
            ) or usage();
 
@@ -90,7 +90,7 @@ $zm =~ s/\/api//;
 my $tmpdir = tempdir(CLEANUP => $debug ? 0 : 1);
 
 # Video is input to ffmpeg using a file containing a list of video file names.
-my $fileListName = $tmpdir . "/filelist.txt";
+my $fileListName = $tmpdir . "/filelist$$.txt";
 
 open(FLIST, '>', $fileListName) or die "can't open $fileListName\n";
 
@@ -146,6 +146,9 @@ print "found " . @events . " event" . (@events == 1 ? "" : "s") . "\n" if @event
 # Bail if we found no events
 exit if !@events;
 
+# Sometimes the last file doesn't get written. Sleep?
+select(undef, undef, undef, 0.25);
+
 # If there is a speed multiplier, add a filter to do that. Otherwise,
 # use the 'copy' command.
 my $option;
@@ -190,9 +193,6 @@ sub getMonitors
 
     $monitorsById->{$mid} = $monitor;
     $monitorsByName->{$mName} = $monitor;
-
-    $monitor->{zonesById} = {};
-    $monitor->{zonesByName} = {};
   }
 }
 
