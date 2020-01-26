@@ -58,8 +58,8 @@ GetOptions("debug" => \$debug,
            "view"  => \$view,
            "save"  => \$save,
            "video=s"  => \$video,
-           "infps" => \$infps,
-           "outfps" => \$outfps,
+           "infps=f" => \$infps,
+           "outfps=f" => \$outfps,
            "viewer=s"  => \$viewer,
            "help" => sub { usage() }
            ) or usage();
@@ -200,7 +200,7 @@ if ($video && @events)
   
   close(FILELIST);
 
-  my $cmd = "ffmpeg -y -r $infps -f concat -safe 0 -i $listfile -c:v libx264 -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2,fps=25,format=yuv420p\" $video";
+  my $cmd = "ffmpeg -y -r $infps -f concat -safe 0 -i $listfile -c:v libx264 -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2,fps=$outfps,format=yuv420p\" $video";
 
   logger("executing: $cmd");
 
