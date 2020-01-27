@@ -121,7 +121,7 @@ for my $event (@events)
   logger($url);
 
   # Specify the file name for this video  
-  my $filename = $from . "_" . $event->{Id} . ".mp4";
+  my $filename = $from . "_" . $event->{Id} . "_" . $monName . ".mp4";
   $filename =~ s/\s+/_/g;
 
   logger("filename: $tmpdir/$filename\n");
