@@ -166,9 +166,9 @@ else
 
 $outfps = "-r $outfps" if $outfps ne "";
 
-my $cmd = "ffmpeg -y -f concat -safe 0 -i $fileListName $option $outfps $outputFile";
+my $cmd = "ffmpeg -y -hide_banner -loglevel info -f concat -safe 0 -i $fileListName $option $outfps $outputFile";
 
-logger("executing: $cmd");
+print "executing: $cmd\n";
 
 system($cmd);
 
