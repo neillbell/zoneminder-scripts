@@ -200,9 +200,9 @@ if ($video && @events)
   
   close(FILELIST);
 
-  my $cmd = "ffmpeg -y -r $infps -f concat -safe 0 -i $listfile -c:v libx264 -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2,fps=$outfps,format=yuv420p\" $video";
+  my $cmd = "ffmpeg -y -hide_banner -loglevel info -r $infps -f concat -safe 0 -i $listfile -c:v libx264 -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2,fps=$outfps,format=yuv420p\" $video";
 
-  logger("executing: $cmd");
+  print "executing: $cmd\n";
 
   system($cmd);
 }
