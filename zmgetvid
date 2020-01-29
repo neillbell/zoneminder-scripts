@@ -27,6 +27,7 @@ my $zmpass = $ENV{ZMPASS};
 my @monitorKeys;
 my $fromTime;
 my $toTime;
+my $search;
 my $speed;
 my $outputFile;
 my $monitorsById;
@@ -41,6 +42,7 @@ GetOptions("debug" => \$debug,
            "zmuser=s"  => \$zmuser,
            "zmpass=s"  => \$zmpass,
            "from=s"  => \$fromTime,
+           "search=s" => \$search,
            "to=s"  => \$toTime,
            "monitor=s"  => \@monitorKeys,
            "speed=f" => \$speed,
@@ -173,8 +175,8 @@ print "executing: $cmd\n";
 system($cmd);
 
 
-# Query the API for a list of monitors and zones and create a data
-# structure for each monitor and associated zones.
+# Query the API for a list of monitors and create a data structure
+# for each monitor.
 #
 # Also create global hashes that can be used to look up monitors
 # by ID or name.
@@ -266,6 +268,25 @@ sub getEvents
     }
   }
 
+  if ($search)
+  {
+    my $invert =  0;
+    if ($search =~ /^!/)
+    {
+      $invert = 1;
+      $search =~ s/^!//;
+    }
+
+    if ($invert)
+    {
+      $url .= "/Notes NOT REGEXP:$search" if $search;
+    }
+    else
+    {
+      $url .= "/Notes REGEXP:$search" if $search;
+    }
+  }
+  
   $url .= ".json?&sort=StartTime&direction=asc";
 
   my $fullUrl = $url . "&page=1";
