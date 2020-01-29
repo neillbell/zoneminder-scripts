@@ -346,6 +346,8 @@ sub usage
       --to=TIME          The time to stop looking for events (defaults to now)
       --monitor=MID      The monitor to use (name or ID) (can use multiple times)
       --output=filename  Optionally specify the name of the output video file.
+      --search=STRING    Search for a match in the event notes. Prefix with ! 
+                         for not matches.
       --speed=FLOAT      A speed multiplier. Will re-encode instead of copy.
       --zmapi=API        The ZoneMinder API address (env var ZMAPI)
       --zmpass=PASSWORD  The ZoneMinder password (env var ZMPASS)
