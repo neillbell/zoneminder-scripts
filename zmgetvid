@@ -35,6 +35,8 @@ my $monitorsByName;
 my $outfps = "";
 my @events;
 
+usage() unless @ARGV;
+  
 Getopt::Long::Configure();
 
 GetOptions("debug" => \$debug,
@@ -51,8 +53,6 @@ GetOptions("debug" => \$debug,
            "help" => sub { usage() }
            ) or usage();
 
-usage() unless @ARGV;
-  
 die "ZM API address not specifified\n" unless $zmapi;
 die "ZM user not specified\n" unless $zmuser;
 die "ZM password not specified\n" unless $zmpass;
@@ -112,7 +112,7 @@ for my $event (@events)
   # If the user didn't specify an output file name, then make one up
   if (!defined $outputFile)
   {
-    $outputFile = "$from" . "_$eid.mp4";
+    $outputFile = "$from" . "_$eid" . "_$monName.mp4";
     $outputFile =~ s/\s+/_/g;    
   }
 
@@ -168,8 +168,10 @@ else
   $option = "-c copy";
 }
 
+# Specify the output frame rate
 $outfps = "-r $outfps" if $outfps ne "";
 
+# Use ffmpeg to concatenate the videos
 my $cmd = "ffmpeg -y -hide_banner -loglevel info -f concat -safe 0 -i $fileListName $option $outfps $outputFile";
 
 print "executing: $cmd\n";
