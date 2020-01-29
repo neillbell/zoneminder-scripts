@@ -7,7 +7,7 @@ It was mostly created in order to learn about managing github repositories, but 
 The Scripts
 ----
 
-* **daylight** use zmgetimg and sunrise to fetch and save daylight motion images during ap specified set of days.
+* **daylight** use zmgetimg and sunrise to fetch and save daylight motion images during a specified set of days.
 
 * **dosunrise** example script for using the sunrise script and 'at' to control ZoneMinder.
 
