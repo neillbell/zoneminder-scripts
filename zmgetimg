@@ -43,6 +43,9 @@ my @events;
 my %types = ("alarm" => 1,
              "objdetect" => 1,
              "snapshot" => 1);
+
+usage() unless @ARGV;
+
 Getopt::Long::Configure();
 
 GetOptions("debug" => \$debug,
@@ -62,8 +65,6 @@ GetOptions("debug" => \$debug,
            "viewer=s"  => \$viewer,
            "help" => sub { usage() }
            ) or usage();
-
-usage() unless @ARGV;
   
 die "ZM API address not specifified\n" unless $zmapi;
 die "ZM user not specified\n" unless $zmuser;
