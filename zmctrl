@@ -237,6 +237,8 @@ my %zoneSetParams;
 my $monitorsById;
 my $monitorsByName;
 
+usage() unless @ARGV;
+
 GetOptions("debug" => \$debug,
            "zmapi=s" => \$zmapi,
            "zmuser=s"  => \$zmuser,
