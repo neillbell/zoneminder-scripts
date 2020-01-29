@@ -2,8 +2,7 @@
 
 # ==========================================================================
 #
-# Save snapshots of motion during daytime over a period of time during
-# daylight hours.
+# Save snapshots of motion over a period of time during daylight hours.
 #
 # Copyright 2019, Neill Bell
 #
