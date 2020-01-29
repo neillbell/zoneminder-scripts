@@ -279,7 +279,7 @@ getMonitors();
 
 my $cmd = shift @ARGV;
 
-die "no command specified\n" if !defined $cmd;
+usage() if !defined $cmd;
 
 # Process the command to list all the monitors
 if ($cmd eq "list")
@@ -950,6 +950,9 @@ sub usage
       --zmpass   The Zoneminder password (env var ZMPASS)
       --debug    Turn on debug logging
 
+    notes:
+      Zones is a special monitor parameter that will return a list of all zones.
+    
 EOF
   exit;
 }
