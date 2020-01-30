@@ -28,7 +28,7 @@ my $video;
 my $zmapi = $ENV{ZMAPI};
 my $zmuser = $ENV{ZMUSER};
 my $zmpass = $ENV{ZMPASS};
-my $viewer = "eog";
+my $viewer = $ENV{ZMGETIMGVIEWER} || "eog";
 my $type = "snapshot";
 my @monitorKeys;
 my $search;
@@ -412,12 +412,14 @@ sub usage
       --infps            Number of input images per second for video mode (default 1)
       --outfps           Frame rate for output video (default 25)
       --monitor=MID      The monitor to use (name or ID)
-      --search=STRING    Only include events that match the search term in Notes (start with ! to invert)
+      --search=STRING    Only include events that match the search term in Notes (start
+                         with ! to invert)
       --save             Save the image files in the currect directory.     
       --type             The type of image to get (alarm, objdetect, snapshot)     
       --video=STRING     Create a video from the images using the given file name
       --view             Create a temporary directory, store the images and call a viewer
       --viewer=VIEWER    Specify the program to use for viewing events (default is eog)
+                         (env var ZMGETIMGVIEWER)
       --zmapi=API        The ZoneMinder API address (env var ZMAPI)
       --zmpass=PASSWORD  The ZoneMinder password (env var ZMPASS)
       --zmuser=USERNAME  The ZoneMinder user name  (env var ZMUSER)
