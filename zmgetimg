@@ -3,7 +3,7 @@
 # ==========================================================================
 #
 # A script to fetch images from ZoneMinder for a series of events and view
-# or save them.
+# them, save them, or create a video from them.
 #
 # Copyright 2020, Neill Bell
 #
