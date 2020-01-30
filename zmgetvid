@@ -264,11 +264,40 @@ sub getEvents
 
   if (@monitorKeys)
   {
-    for my $monitorKey (@monitorKeys)
-    {
-      my $mid = getMonitorIdByKey($monitorKey);
+    my %exclude;
     
-      $url .= "/MonitorId:$mid";
+    foreach my $monitorKey (@monitorKeys)
+    {
+      if ($monitorKey =~ /^!/)
+      {
+        $monitorKey =~ s/^!//;
+        
+        $exclude{$monitorKey} = 1;
+      }
+    }
+
+    if (keys %exclude)
+    {
+      foreach my $mid (keys %$monitorsById)
+      {
+        my $monitor = $monitorsById->{$mid};
+        my $mid = $monitor->{Id};
+        
+        $url .= "/MonitorId:$mid" unless
+          $exclude{$mid} or
+          $exclude{$monitor->{Name}} or
+          !$monitor->{Enabled} or
+          $monitor->{Function} eq "None";
+      }
+    }
+    else
+    {
+      for my $monitorKey (@monitorKeys)
+      {
+        my $mid = getMonitorIdByKey($monitorKey);
+      
+        $url .= "/MonitorId:$mid";
+      }
     }
   }
 
@@ -290,6 +319,8 @@ sub getEvents
       $url .= "/Notes REGEXP:$search" if $search;
     }
   }
+
+  print "url = $url\n";
   
   $url .= ".json?&sort=StartTime&direction=asc";
 
@@ -349,6 +380,7 @@ sub usage
       --from=TIME        The time to start looking for events
       --to=TIME          The time to stop looking for events (defaults to now)
       --monitor=MID      The monitor to use (name or ID) (can use multiple times)
+                         (start with ! to exclude)
       --outfps=FLOAT     Optionally specify the frame rate of the output video file.
       --output=filename  Optionally specify the name of the output video file.
       --search=STRING    Only include events that match the search term in 
