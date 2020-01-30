@@ -400,7 +400,8 @@ sub usage
 {
   print STDERR <<EOF;
   
-  Fetch images from ZoneMinder for a series of events and view or save them.
+  Fetch images from ZoneMinder for a series of events and view them, save them,
+  or make a video from them.
     
     usage: zmgetimg [option]
 
