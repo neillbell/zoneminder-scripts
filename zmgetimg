@@ -30,7 +30,7 @@ my $zmuser = $ENV{ZMUSER};
 my $zmpass = $ENV{ZMPASS};
 my $viewer = "eog";
 my $type = "snapshot";
-my @monitorNames;
+my @monitorKeys;
 my $search;
 my $fromTime;
 my $toTime;
@@ -55,7 +55,7 @@ GetOptions("debug" => \$debug,
            "type=s"  => \$type,
            "from=s"  => \$fromTime,
            "to=s"  => \$toTime,
-           "monitor=s"  => \@monitorNames,
+           "monitor=s"  => \@monitorKeys,
            "search=s"  => \$search,
            "view"  => \$view,
            "save"  => \$save,
@@ -294,13 +294,42 @@ sub getEvents
   $url .= "/StartTime>=:" . $format->format_datetime($from);
   $url .= "/StartTime<=:" . $format->format_datetime($to);
 
-  if (@monitorNames)
+  if (@monitorKeys)
   {
-    for my $monitorName (@monitorNames)
-    {
-      my $mid = getMonitorIdByKey($monitorName);
+    my %exclude;
     
-      $url .= "/MonitorId:$mid";
+    foreach my $monitorKey (@monitorKeys)
+    {
+      if ($monitorKey =~ /^!/)
+      {
+        $monitorKey =~ s/^!//;
+        
+        $exclude{$monitorKey} = 1;
+      }
+    }
+
+    if (keys %exclude)
+    {
+      foreach my $mid (keys %$monitorsById)
+      {
+        my $monitor = $monitorsById->{$mid};
+        my $mid = $monitor->{Id};
+        
+        $url .= "/MonitorId:$mid" unless
+          $exclude{$mid} or
+          $exclude{$monitor->{Name}} or
+          !$monitor->{Enabled} or
+          $monitor->{Function} eq "None";
+      }
+    }
+    else
+    {
+      for my $monitorKey (@monitorKeys)
+      {
+        my $mid = getMonitorIdByKey($monitorKey);
+      
+        $url .= "/MonitorId:$mid";
+      }
     }
   }
 
