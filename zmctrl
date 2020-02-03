@@ -288,7 +288,7 @@ if ($cmd eq "list")
 {
   print "Monitor Name     ID    Function    Enabled   Status\n";
   
-  foreach my $mName (sort keys %$monitorsByName)
+  foreach my $mName (sort { lc($a) cmp lc($b) } keys %$monitorsByName)
   {
     my $monitor = $monitorsByName->{$mName};
     my $status = $monitor->{Status};
@@ -318,7 +318,7 @@ elsif ($cmd eq "get")
   }
   else
   {
-    foreach my $mName (sort keys %$monitorsByName)
+    foreach my $mName (sort { lc($a) cmp lc($b) } keys %$monitorsByName)
     {
       my $mid = $monitorsByName->{$mName}->{Id};
 
@@ -345,7 +345,7 @@ elsif ($cmd eq "getalarm")
 
   if (! defined $key)
   {
-    foreach my $mName (sort keys %$monitorsByName)
+    foreach my $mName (sort { lc($a) cmp lc($b) } keys %$monitorsByName)
     {
       my $monitor = $monitorsByName->{$mName};
       my $result = getMonitorAlarm($monitor->{Id});
@@ -396,7 +396,7 @@ elsif ($cmd eq "getstatus")
 
   if (! defined $key)
   {
-    foreach my $mName (sort keys %$monitorsByName)
+    foreach my $mName (sort { lc($a) cmp lc($b) } keys %$monitorsByName)
     {
       my $monitor = $monitorsByName->{$mName};
       my $status = $monitor->{Status};
@@ -676,7 +676,7 @@ sub getMonitorParams
   {
     print "Monitor $monitorsById->{$mid}->{Name} ($mid)\n";
 
-    foreach my $param (sort keys %monitorGetParams)
+    foreach my $param (sort { lc($a) cmp lc($b) } keys %monitorGetParams)
     {
       my $value = $monitor->{$param};
 
@@ -724,7 +724,7 @@ sub getZoneParams
   {
     print "Monitor $monitor->{Name} ($mid), Zone $zone->{Name} ($zid)\n";
 
-    foreach my $param (sort keys %zoneGetParams)
+    foreach my $param (sort { lc($a) cmp lc($b) } keys %zoneGetParams)
     {
       die "$param not available for zones\n" if !$zoneGetParams{$param};
 
@@ -777,7 +777,7 @@ sub getZoneList
 
   my $zones = $monitor->{zonesByName};
     
-  foreach my $zName (sort keys %$zones)
+  foreach my $zName (sort { lc($a) cmp lc($b) } keys %$zones)
   {
     $zoneList .= "$zName ($zones->{$zName}->{Id}), ";
   }
