@@ -217,8 +217,8 @@ my %allowedValues = (
               "Pixels" => 1},
 );
 
-# Translation from the monitor state value to text
-my %monitorState = (
+# Translation from the alarm state value to text
+my %alarmState = (
   0 => "IDLE",
   1 => "PREALARM",
   2 => "ALARM",
@@ -351,7 +351,7 @@ elsif ($cmd eq "getalarm")
       my $result = getMonitorAlarm($monitor->{Id});
       my $state;
       
-      $state =  $monitorState{$result->{status}} if $result->{status} ne "";
+      $state =  $alarmState{$result->{status}} if $result->{status} ne "";
       $state =  "UNKNOWN" if $result->{status} eq "";
       
       printf "%-15s %s\n",
@@ -365,7 +365,7 @@ elsif ($cmd eq "getalarm")
 
     my $result = getMonitorAlarm($mid);
 
-    print "  Alarm State: " . $monitorState{$result->{status}} . "\n" if $result->{status} ne "";
+    print "  Alarm State: " . $alarmState{$result->{status}} . "\n" if $result->{status} ne "";
     print "  Alarm State: UNKNOWN\n" if $result->{status} eq "";
   }
 }
