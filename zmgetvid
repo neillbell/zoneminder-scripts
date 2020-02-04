@@ -143,11 +143,7 @@ for my $event (@events)
   # Fetch the video
   my $code = getstore($url, $tmpdir . "/" . $filename);
 
-  if (is_error($code))
-  {
-    print "code = $code\n";
-    exit 1;
-  }
+  die "error: code = $code\n" if is_error($code);
 
   # Write the video file name into the file list file.
   print FLIST "file '$tmpdir/$filename'\n";  
