@@ -33,7 +33,15 @@ my $outputFile;
 my $monitorsById;
 my $monitorsByName;
 my $outfps = "";
+my $transpose;
 my @events;
+
+my %transpositions = (
+  0 => 1,  # 90CounterCLockwise and Vertical Flip
+  1 => 1,  # 90Clockwise
+  2 => 1,  # 90CounterClockwise
+  3 => 1   # 90Clockwise and Vertical Flip
+);
 
 usage() unless @ARGV;
   
@@ -50,6 +58,7 @@ GetOptions("debug" => \$debug,
            "speed=f" => \$speed,
            "output=s" => \$outputFile,
            "outfps=f" => \$outfps,
+           "transpose=i" => \$transpose,
            "help" => sub { usage() }
            ) or usage();
 
@@ -57,6 +66,7 @@ die "ZM API address not specifified\n" unless $zmapi;
 die "ZM user not specified\n" unless $zmuser;
 die "ZM password not specified\n" unless $zmpass;
 die "start time not specified\n" if !defined $fromTime;
+die "transpose must be one of " . join(", ", keys %transpositions) if defined $transpose and !defined $transpositions{$transpose};
 
 $toTime = "now" if !defined $toTime;
 
@@ -157,11 +167,22 @@ select(undef, undef, undef, 0.25);
 # use the 'copy' command.
 my $option;
 
-if (defined $speed)
+if (defined $speed or defined $transpose)
 {
-  my $ratio = 1/$speed;
+  my @mods;
+  
+  if (defined $speed)
+  {
+    my $ratio = 1/$speed;
+    push(@mods, "setpts=$ratio*PTS");
+  }
 
-  $option = "-filter:v \"setpts=$ratio*PTS\"";
+  if (defined $transpose)
+  {
+    push(@mods, "transpose=$transpose");    
+  }
+
+  $option = "-filter:v \"" . join(",", @mods) . "\"";
 }
 else
 {
@@ -172,7 +193,7 @@ else
 $outfps = "-r $outfps" if $outfps ne "";
 
 # Use ffmpeg to concatenate the videos
-my $cmd = "ffmpeg -y -hide_banner -loglevel info -f concat -safe 0 -i $fileListName $option $outfps $outputFile";
+my $cmd = "ffmpeg -y -hide_banner -loglevel info -f concat -safe 0 -i $fileListName $option $outfps -an $outputFile";
 
 print "executing: $cmd\n";
 
@@ -386,6 +407,11 @@ sub usage
       --search=STRING    Only include events that match the search term in 
                          Notes (start with ! to invert).
       --speed=FLOAT      A speed multiplier. Will re-encode instead of copy.
+      --transpose=INT    Transpose the output video:
+                           0: 90CounterCLockwise and Vertical Flip
+                           1: 90Clockwise
+                           2: 90CounterClockwise
+                           3: 90Clockwise and Vertical Flip
       --zmapi=API        The ZoneMinder API address (env var ZMAPI)
       --zmpass=PASSWORD  The ZoneMinder password (env var ZMPASS)
       --zmuser=USERNAME  The ZoneMinder user name  (env var ZMUSER)
