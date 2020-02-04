@@ -143,11 +143,7 @@ for my $event (@events)
   # Fetch the video
   my $code = getstore($url, $tmpdir . "/" . $filename);
 
-  if (is_error($code))
-  {
-    print "code = $code\n";
-    exit 1;
-  }
+  die "error: code = $code\n" if (is_error($code));
 
   # Write the video file name into the file list file.
   print FLIST "file '$tmpdir/$filename'\n";  
@@ -158,7 +154,7 @@ close(FLIST) or warn "close failed: $!";
 print "found " . @events . " event" . (@events == 1 ? "" : "s") . "\n" if @events > 0;
 
 # Bail if we found no events
-exit if !@events;
+exit 0 if !@events;
 
 # Sometimes the last file doesn't get written. Sleep?
 select(undef, undef, undef, 0.25);
