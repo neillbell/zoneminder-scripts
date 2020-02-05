@@ -33,6 +33,7 @@ my %logLevel = (
   );
 
 my $debug = 'error';
+my $savetmp;
 my $view;
 my $save;
 my $video;
@@ -60,6 +61,7 @@ usage() unless @ARGV;
 Getopt::Long::Configure();
 
 GetOptions("debug=s" => \$debug,
+           "savetmp" => \$savetmp,
            "zmapi=s" => \$zmapi,
            "zmuser=s"  => \$zmuser,
            "zmpass=s"  => \$zmpass,
@@ -123,30 +125,24 @@ my $index = 0;
 my @fileNames;
 my $tmpdir;
 
-$tmpdir = tempdir( CLEANUP => 1 ) if $view || $video;
+$tmpdir = tempdir( CLEANUP => $savetmp ? 0 : 1) if $view || $video;
 
 for my $event (@events)
 {
   my $mid = $event->{MonitorId};
   my $eid = $event->{Id};
-
   my $monitor = $monitorsById->{$mid};
-
   my $monName = $monitor->{Name};
-
   my $from = $event->{StartTime};
 
   printf "%-15s%-8s%19s: %s\n", $monName, $event->{Id}, $from, $event->{Notes};
 
-  my $zm = $zmapi;
-  $zm =~ s/\/api//;
-
-  my $url = $zm . "/index.php?view=image&eid=$eid&fid=$type" . ($accessToken ? "&token=$accessToken" : "")
-    if $save || $view || $video;
+  my $zm = $zmapi =~ s/\/api//r;
+  my $url = $zm . "/index.php?view=image&eid=$eid&fid=$type" . ($accessToken ? "&token=$accessToken" : "");
   
   if ($view || $video)
   {
-    my $template = $from . "_" . $monName . "_" . $event->{Id} . "_XXXX";
+    my $template = $from . "_" . $monName . "_" . $eid . "_XXXX";
     $template =~ s/\s+/_/g;
     my ($fh, $filename) = tempfile($template, DIR => $tmpdir, SUFFIX => '.jpg');
 
@@ -165,7 +161,7 @@ for my $event (@events)
   }
   elsif ($save)
   {
-    my $template = $from . "_" . $monName . "_" . $event->{Id} . "_%04d.jpg";
+    my $template = $from . "_" . $monName . "_" . $eid . "_%04d.jpg";
     $template =~ s/\s+/_/g;
     my $filename = sprintf "$template", $index;
 
@@ -210,14 +206,14 @@ if ($video && @events)
 
   my $listfile = $destdir . "/listfile" . $$ . ".txt";
 
-  open(FILELIST, '>', $listfile) or die "can't open $listfile\n";
+  open(my $fh, '>', $listfile) or die "can't open $listfile\n";
 
   foreach my $fileName (@fileNames)
   {
-    print FILELIST "file '$fileName'\n";
+    print $fh "file '$fileName'\n";
   }
   
-  close(FILELIST);
+  close($fh);
 
   my $cmd = "ffmpeg -y -hide_banner -loglevel info -r $infps -f concat -safe 0 -i $listfile -c:v libx264 -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2,fps=$outfps,format=yuv420p\" $video";
 
@@ -416,7 +412,7 @@ sub usage
     usage: zmgetimg [option]
 
     options:
-      --debug=s          Set the debug level (debug, info, notice, warning, error)
+      --debug=STRING     Set the debug level (debug, info, notice, warning, error)
       --help             Print this text
       --from=TIME        The time to start looking for events
       --to=TIME          The time to stop looking for events (defaults to now)
