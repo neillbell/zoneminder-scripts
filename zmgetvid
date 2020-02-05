@@ -32,6 +32,7 @@ my %logLevel = (
   );
 
 my $debug = 'error';
+my $savetmp;
 my $zmapi = $ENV{ZMAPI};
 my $zmuser = $ENV{ZMUSER};
 my $zmpass = $ENV{ZMPASS};
@@ -59,6 +60,7 @@ usage() unless @ARGV;
 Getopt::Long::Configure();
 
 GetOptions("debug=s" => \$debug,
+           "savetmp" => \$savetmp,
            "zmapi=s" => \$zmapi,
            "zmuser=s"  => \$zmuser,
            "zmpass=s"  => \$zmpass,
@@ -83,7 +85,8 @@ die "ZM API address not specifified\n" unless $zmapi;
 die "ZM user not specified\n" unless $zmuser;
 die "ZM password not specified\n" unless $zmpass;
 die "start time not specified\n" if !defined $fromTime;
-die "transpose must be one of " . join(", ", keys %transpositions) if defined $transpose and !defined $transpositions{$transpose};
+die "transpose must be one of " . join(", ", keys %transpositions)
+  if defined $transpose and !defined $transpositions{$transpose};
 
 $toTime = "now" if !defined $toTime;
 
@@ -113,27 +116,23 @@ getMonitors();
 # Get a list of events as specified by the command line parameters
 getEvents();
 
-my $zm = $zmapi;
-$zm =~ s/\/api//;
+my $zm = $zmapi =~ s/\/api//r;
 
 # Collect the input video in a temporary directory that will be deleted
 # at exit.
-my $tmpdir = tempdir(CLEANUP => $debug ? 0 : 1);
+my $tmpdir = tempdir(CLEANUP => $savetmp ? 0 : 1);
 
 # Video is input to ffmpeg using a file containing a list of video file names.
 my $fileListName = $tmpdir . "/filelist$$.txt";
 
-open(FLIST, '>', $fileListName) or die "can't open $fileListName\n";
+open(my $fh, '>', $fileListName) or die "can't open $fileListName\n";
 
 for my $event (@events)
 {
   my $mid = $event->{MonitorId};
   my $eid = $event->{Id};
-
   my $monitor = $monitorsById->{$mid};
-
   my $monName = $monitor->{Name};
-
   my $from = $event->{StartTime};
 
   # If the user didn't specify an output file name, then make one up
@@ -144,7 +143,7 @@ for my $event (@events)
   }
 
   # Print the details about the event we found.
-  printf "%-15s%-8s%19s: %s\n", $monName, $event->{Id}, $from, $event->{Notes};
+  printf "%-15s%-8s%19s: %s\n", $monName, $eid, $from, $event->{Notes};
 
   # Create an URL to fetch the video for the event
   my $url = $zm . "/index.php?view=view_video&eid=$eid" . ($accessToken ? "&token=$accessToken" : "");
@@ -152,7 +151,7 @@ for my $event (@events)
   $log->info($url);
 
   # Specify the file name for this video  
-  my $filename = $from . "_" . $event->{Id} . "_" . $monName . ".mp4";
+  my $filename = $from . "_" . $eid . "_" . $monName . ".mp4";
   $filename =~ s/\s+/_/g;
 
   $log->debug("filename: $tmpdir/$filename\n");
@@ -163,10 +162,10 @@ for my $event (@events)
   die "error: code = $code\n" if is_error($code);
 
   # Write the video file name into the file list file.
-  print FLIST "file '$tmpdir/$filename'\n";  
+  print $fh "file '$tmpdir/$filename'\n";  
 }
 
-close(FLIST) or warn "close failed: $!";
+close($fh) or warn "close failed: $!";
 
 print "found " . @events . " event" . (@events == 1 ? "" : "s") . "\n" if @events > 0;
 
@@ -402,7 +401,7 @@ sub usage
     usage: zmgetvid [option]
 
     options:
-      --debug            Enable debug output
+      --debug=STRING     Set the debug level (debug, info, notice, warning, error)
       --help             Print this text
       --from=TIME        The time to start looking for events
       --to=TIME          The time to stop looking for events (defaults to now)
@@ -413,6 +412,7 @@ sub usage
       --search=STRING    Only include events that match the search term in 
                          Notes (start with ! to invert).
       --speed=FLOAT      A speed multiplier. Will re-encode instead of copy.
+      --savetmp          Save temporary files.
       --transpose=INT    Transpose the output video:
                            0: 90CounterCLockwise and Vertical Flip
                            1: 90Clockwise
