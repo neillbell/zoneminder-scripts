@@ -11,6 +11,8 @@
 use strict;
 use warnings;
 use Data::Dumper;
+use Log::Any qw($log);
+use Log::Any::Adapter;
 use JSON;
 use WWW::Mechanize;
 use Getopt::Long;
@@ -20,7 +22,16 @@ use DateTime::Format::Strptime;
 use LWP::Simple qw/ getstore is_error /;
 use File::Temp qw/ tempfile tempdir /;
 
-my $debug;
+# Log levels
+my %logLevel = (
+  debug => 1,
+  info => 1, 
+  notice => 1,
+  warning => 1,
+  error => 1
+  );
+
+my $debug = 'error';
 my $zmapi = $ENV{ZMAPI};
 my $zmuser = $ENV{ZMUSER};
 my $zmpass = $ENV{ZMPASS};
@@ -47,7 +58,7 @@ usage() unless @ARGV;
   
 Getopt::Long::Configure();
 
-GetOptions("debug" => \$debug,
+GetOptions("debug=s" => \$debug,
            "zmapi=s" => \$zmapi,
            "zmuser=s"  => \$zmuser,
            "zmpass=s"  => \$zmpass,
@@ -62,6 +73,12 @@ GetOptions("debug" => \$debug,
            "help" => sub { usage() }
            ) or usage();
 
+Log::Any::Adapter->set('Screen',
+                       min_level => $debug,
+                       stderr    => 1
+  );
+
+die "debug must be one of " . join(", ", keys %logLevel) . "\n" if !$logLevel{$debug};
 die "ZM API address not specifified\n" unless $zmapi;
 die "ZM user not specified\n" unless $zmuser;
 die "ZM password not specified\n" unless $zmpass;
@@ -77,7 +94,7 @@ my $response = $agent->post("$zmapi/host/login.json",
                             [user => $zmuser,
                              pass => $zmpass]);
 
-logger("LOGIN: " . Dumper($response));
+$log->debug("LOGIN: " . Dumper($response));
 
 if (!$agent->success())
 {
@@ -132,13 +149,13 @@ for my $event (@events)
   # Create an URL to fetch the video for the event
   my $url = $zm . "/index.php?view=view_video&eid=$eid" . ($accessToken ? "&token=$accessToken" : "");
 
-  logger($url);
+  $log->info($url);
 
   # Specify the file name for this video  
   my $filename = $from . "_" . $event->{Id} . "_" . $monName . ".mp4";
   $filename =~ s/\s+/_/g;
 
-  logger("filename: $tmpdir/$filename\n");
+  $log->debug("filename: $tmpdir/$filename\n");
 
   # Fetch the video
   my $code = getstore($url, $tmpdir . "/" . $filename);
@@ -191,7 +208,7 @@ $outfps = "-r $outfps" if $outfps ne "";
 # Use ffmpeg to concatenate the videos
 my $cmd = "ffmpeg -y -hide_banner -loglevel info -f concat -safe 0 -i $fileListName $option $outfps -an $outputFile";
 
-print "executing: $cmd\n";
+$log->info("executing: $cmd");
 
 system($cmd);
 
@@ -243,7 +260,7 @@ sub getJson
 
   my $response = $agent->get($uri);
 
-  #logger("JSON GET: " . Dumper($response));
+  $log->debug("JSON GET: " . Dumper($response));
 
   if (!$agent->success())
   {
@@ -337,13 +354,13 @@ sub getEvents
     }
   }
 
-  print "url = $url\n";
+  #print "url = $url\n";
   
   $url .= ".json?&sort=StartTime&direction=asc";
 
   my $fullUrl = $url . "&page=1";
 
-  logger($fullUrl);
+  $log->info($fullUrl);
   
   my $result = getJson($agent, $fullUrl . ($accessToken ? "&token=$accessToken" : ""));
 
@@ -355,7 +372,7 @@ sub getEvents
   {
     $fullUrl = $url . "&page=$i";
     
-    logger($fullUrl);
+    $log->info($fullUrl);
   
     $result = getJson($agent, $fullUrl . ($accessToken ? "&token=$accessToken" : ""));
 
@@ -371,13 +388,6 @@ sub handlePage
   {
     push(@events, $ev->{Event});
   }
-}
-
-sub logger
-{
-  my ($line) = @_;
-
-  print "$line\n" if defined $debug;
 }
 
 #
