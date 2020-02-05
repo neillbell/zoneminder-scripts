@@ -12,6 +12,8 @@
 use strict;
 use warnings;
 use Data::Dumper;
+use Log::Any qw($log);
+use Log::Any::Adapter;
 use JSON;
 use WWW::Mechanize;
 use Getopt::Long;
@@ -21,7 +23,16 @@ use DateTime::Format::Strptime;
 use LWP::Simple qw/ getstore is_error /;
 use File::Temp qw/ tempfile tempdir /;
 
-my $debug;
+# Log levels
+my %logLevel = (
+  debug => 1,
+  info => 1, 
+  notice => 1,
+  warning => 1,
+  error => 1
+  );
+
+my $debug = 'error';
 my $view;
 my $save;
 my $video;
@@ -48,7 +59,7 @@ usage() unless @ARGV;
 
 Getopt::Long::Configure();
 
-GetOptions("debug" => \$debug,
+GetOptions("debug=s" => \$debug,
            "zmapi=s" => \$zmapi,
            "zmuser=s"  => \$zmuser,
            "zmpass=s"  => \$zmpass,
@@ -66,6 +77,12 @@ GetOptions("debug" => \$debug,
            "help" => sub { usage() }
            ) or usage();
   
+Log::Any::Adapter->set('Screen',
+                       min_level => $debug,
+                       stderr    => 1
+  );
+
+die "debug must be one of " . join(", ", keys %logLevel) . "\n" if !$logLevel{$debug};
 die "ZM API address not specifified\n" unless $zmapi;
 die "ZM user not specified\n" unless $zmuser;
 die "ZM password not specified\n" unless $zmpass;
@@ -83,7 +100,7 @@ my $response = $agent->post("$zmapi/host/login.json",
                             [user => $zmuser,
                              pass => $zmpass]);
 
-#logger("LOGIN: " . Dumper($response));
+$log->debug("LOGIN: " . Dumper($response));
 
 if (!$agent->success())
 {
@@ -133,8 +150,8 @@ for my $event (@events)
     $template =~ s/\s+/_/g;
     my ($fh, $filename) = tempfile($template, DIR => $tmpdir, SUFFIX => '.jpg');
 
-    logger("url = $url");
-    logger("filename = $filename");
+    $log->info("url = $url");
+    $log->debug("filename = $filename");
     
     my $code = getstore($url, $filename);
 
@@ -152,8 +169,8 @@ for my $event (@events)
     $template =~ s/\s+/_/g;
     my $filename = sprintf "$template", $index;
 
-    logger("url = $url");
-    logger("filename = $filename");
+    $log->info("url = $url");
+    $log->debug("filename = $filename");
     
     my $code = getstore($url, $filename);
 
@@ -256,7 +273,7 @@ sub getJson
 
   my $response = $agent->get($uri);
 
-  #logger("JSON GET: " . Dumper($response));
+  $log->debug("JSON GET: " . Dumper($response));
 
   if (!$agent->success())
   {
@@ -356,7 +373,7 @@ sub getEvents
 
   my $fullUrl = $url . "&page=$page";
 
-  logger($fullUrl);
+  $log->info($fullUrl);
   
   my $result = getJson($agent, $fullUrl . ($accessToken ? "&token=$accessToken" : ""));
 
@@ -368,7 +385,7 @@ sub getEvents
   {
     $fullUrl = $url . "&page=$i";
     
-    logger($fullUrl);
+    $log->info($fullUrl);
     
     $result = getJson($agent, $fullUrl . ($accessToken ? "&token=$accessToken" : ""));
 
@@ -386,14 +403,7 @@ sub handlePage
   }
 }
 
-sub logger
-{
-  my ($line) = @_;
 
-  print "$line\n" if defined $debug;
-}
-
-#
 # Print usage and exit
 #
 sub usage
@@ -406,7 +416,7 @@ sub usage
     usage: zmgetimg [option]
 
     options:
-      --debug            Enable debug output
+      --debug=s          Set the debug level (debug, info, notice, warning, error)
       --help             Print this text
       --from=TIME        The time to start looking for events
       --to=TIME          The time to stop looking for events (defaults to now)
