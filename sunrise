@@ -21,7 +21,7 @@ my $sunset;
 my $offsetSeconds = 0;
 my $latitude = $ENV{SUNRISE_LAT};
 my $longitude = $ENV{SUNRISE_LONG};
-my $timezone = "local";
+my $timezone = $ENV{SUNRISE_TZ} || "local";
 my $outputFormat = "%I:%M %p";
 my $date = "now";
   

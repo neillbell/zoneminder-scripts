@@ -18,7 +18,7 @@ use Getopt::Long;
 
 my $latitude = $ENV{SUNRISE_LAT};
 my $longitude = $ENV{SUNRISE_LONG};
-my $timezone = "local";
+my $timezone = $ENV{SUNRISE_TZ} || "local";
 my $startdate;
 my $stopdate;
 my @monitor;
