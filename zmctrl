@@ -962,7 +962,7 @@ sub usage
       --zmuser   The Zoneminder user name  (env var ZMUSER)
       --zmpass   The Zoneminder password (env var ZMPASS)
       --zmpass   The Zoneminder password (env var ZMPASS)
-      --debug=s  Set the debug level (debug, info, notice, warning, error)
+      --debug    Set the debug level (debug, info, notice, warning, error)
 
     notes:
       Zones is a special monitor parameter that will return a list of all zones.
