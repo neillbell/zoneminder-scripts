@@ -21,6 +21,8 @@
 use strict;
 use warnings;
 use Data::Dumper;
+use Log::Any qw($log);
+use Log::Any::Adapter;
 use JSON;
 use WWW::Mechanize;
 use Getopt::Long;
@@ -224,9 +226,18 @@ my %alarmState = (
   2 => "ALARM",
   3 => "ALERT",
   4 => "TAPE"
-);
+  );
 
-my $debug;
+# Log levels
+my %logLevel = (
+  debug => 1,
+  info => 1, 
+  notice => 1,
+  warning => 1,
+  error => 1
+  );
+
+my $debug = 'error';
 my $zmapi = $ENV{ZMAPI};
 my $zmuser = $ENV{ZMUSER};
 my $zmpass = $ENV{ZMPASS};
@@ -237,18 +248,25 @@ my %zoneSetParams;
 my $monitorsById;
 my $monitorsByName;
 
+
 usage() unless @ARGV;
 
-GetOptions("debug" => \$debug,
+GetOptions("debug=s" => \$debug,
            "zmapi=s" => \$zmapi,
            "zmuser=s"  => \$zmuser,
            "zmpass=s"  => \$zmpass,
            "help" => sub { usage() }
            ) or usage();
 
+Log::Any::Adapter->set('Screen',
+                       min_level => $debug,
+                       stderr    => 1
+  );
+
 die "zmapi address not specifified\n" unless $zmapi;
 die "zmuser not specified\n" unless $zmuser;
 die "zmpass not specified\n" unless $zmpass;
+die "debug must be one of " . join(", ", keys %logLevel) . "\n" if !$logLevel{$debug};
 
 # Initialize hashes for parameter names
 @monitorGetParams{@monitorGetParams} = @monitorGetParams;
@@ -263,7 +281,7 @@ my $response = $agent->post("$zmapi/host/login.json",
                             [user => $zmuser,
                              pass => $zmpass]);
 
-logger("LOGIN: " . Dumper($response));
+$log->debug("LOGIN: " . Dumper($response));
 
 if (!$agent->success())
 {
@@ -518,7 +536,7 @@ sub postSetMonitorParam
   my $response = $agent->post($url . ($accessToken ? "?token=$accessToken" : ""),
                               ["Monitor[$param]" => $value]);  
 
-  logger("MONITOR POST: " . Dumper($response));
+  $log->debug("MONITOR POST: " . Dumper($response));
 
   if (!$agent->success())
   {
@@ -611,7 +629,7 @@ sub postSetZoneParam
   my $response = $agent->post($url . ($accessToken ? "?token=$accessToken" : ""),
                               ["Zone[$param]" => $value]);  
 
-  logger("ZONE POST: " . Dumper($response));
+  $log->debug("ZONE POST: " . Dumper($response));
 
   if (!$agent->success())
   {
@@ -632,6 +650,8 @@ sub getMonitorParams
   my ($mid, @args) = @_;
   my $monitor;
 
+  $log->info("getMonitorParams($mid, @args)");
+  
   $monitor = $monitorsById->{$mid};
 
   die "monitor $mid is not present\n" if !$monitor;
@@ -699,6 +719,8 @@ sub getZoneParams
   my ($mid, $zid, @args) = @_;
   my $monitor;
   my $zone;
+
+  $log->info("getZoneParams($mid, $zid, @args)");
 
   $monitor = $monitorsById->{$mid};
 
@@ -806,8 +828,6 @@ sub getMonitors
     my $mid = $monitor->{Id};
     my $mName = $monitor->{Name};
 
-    logger("monitor: $mName($mid)\n");
-    
     $monitorsById->{$mid} = $monitor;
     $monitorsByName->{$mName} = $monitor;
 
@@ -887,11 +907,11 @@ sub getJson
   
   $url = $url . ($accessToken ? "?token=$accessToken" : "");
 
-  logger("url: $url\n");
+  $log->info("url: $url");
   
   my $response = $agent->get($url);
 
-  logger("JSON GET: " . Dumper($response));
+  $log->debug("JSON GET: " . Dumper($response));
 
   if (!$agent->success())
   {
@@ -905,14 +925,6 @@ sub getJson
   $result = decode_json($jsonTxt);
 
   return $result;
-}
-
-# Debug logger. Only prints if the --debug argument is used.
-sub logger
-{
-  my ($line) = @_;
-
-  print "$line\n" if defined $debug;
 }
 
 #
@@ -950,7 +962,7 @@ sub usage
       --zmuser   The Zoneminder user name  (env var ZMUSER)
       --zmpass   The Zoneminder password (env var ZMPASS)
       --zmpass   The Zoneminder password (env var ZMPASS)
-      --debug    Turn on debug logging
+      --debug=s  Set the debug level (debug, info, notice, warning, error)
 
     notes:
       Zones is a special monitor parameter that will return a list of all zones.
