@@ -18,6 +18,7 @@ use JSON;
 use WWW::Mechanize;
 use Getopt::Long;
 use HTTP::Status qw(status_message);
+use DateTime::Event::Sunrise;
 use DateTime::Format::Natural;
 use DateTime::Format::Strptime;
 use LWP::Simple qw/ getstore is_error /;
@@ -41,6 +42,8 @@ my $zmapi = $ENV{ZMAPI};
 my $zmuser = $ENV{ZMUSER};
 my $zmpass = $ENV{ZMPASS};
 my $viewer = $ENV{ZMGETIMGVIEWER} || "eog";
+my $latitude = $ENV{SUNRISE_LAT};
+my $longitude = $ENV{SUNRISE_LONG};
 my $type = "snapshot";
 my @monitorKeys;
 my $search;
@@ -48,19 +51,28 @@ my $fromTime;
 my $toTime;
 my $infps = 1;
 my $outfps = 25;
+my $daylight;
 my $monitorsById;
 my $monitorsByName;
 my @events;
 
 my %types = ("alarm" => 1,
              "objdetect" => 1,
+             "first" => 1,
+             "last" => 1,
              "snapshot" => 1);
+
+# Initialize our natural language time parser
+my $parser = DateTime::Format::Natural->new(time_zone => 'local');
+
 
 usage() unless @ARGV;
 
 Getopt::Long::Configure();
 
 GetOptions("debug=s" => \$debug,
+           "lat=f" => \$latitude,
+           "long=f" => \$longitude,
            "savetmp" => \$savetmp,
            "zmapi=s" => \$zmapi,
            "zmuser=s"  => \$zmuser,
@@ -76,6 +88,7 @@ GetOptions("debug=s" => \$debug,
            "infps=f" => \$infps,
            "outfps=f" => \$outfps,
            "viewer=s"  => \$viewer,
+           "daylight" => \$daylight,
            "help" => sub { usage() }
            ) or usage();
   
@@ -88,10 +101,10 @@ die "debug must be one of " . join(", ", keys %logLevel) . "\n" if !$logLevel{$d
 die "ZM API address not specifified\n" unless $zmapi;
 die "ZM user not specified\n" unless $zmuser;
 die "ZM password not specified\n" unless $zmpass;
-die "start time not specified\n" if !defined $fromTime;
+die "from time not specified\n" if !defined $fromTime;
 die "cannot specify both view and save\n" if $view && $save;
 die "cannot specify both view and video\n" if $view && $video;
-die "type must be one of: " . join(", ", keys %types) . "\n" if $type && !$types{$type};
+die "type must be one of: " . join(", ", sort keys %types) . "\n" if $type && !$types{$type};
 
 $toTime = "now" if !defined $toTime;
 
@@ -127,6 +140,12 @@ my $tmpdir;
 
 $tmpdir = tempdir( CLEANUP => $savetmp ? 0 : 1) if $view || $video;
 
+# Initialize our sumrise calculator
+my $sundt = DateTime::Event::Sunrise ->new(latitude  => $latitude,
+                                           longitude => $longitude,
+                                           precise   => 0)
+  if ($daylight);
+
 for my $event (@events)
 {
   my $mid = $event->{MonitorId};
@@ -137,8 +156,21 @@ for my $event (@events)
 
   printf "%-15s%-8s%19s: %s\n", $monName, $event->{Id}, $from, $event->{Notes};
 
+  my $fid = $type eq "first" ? 1 : $type eq "last" ? ($event->{Frames} - 1) : $type;
   my $zm = $zmapi =~ s/\/api//r;
-  my $url = $zm . "/index.php?view=image&eid=$eid&fid=$type" . ($accessToken ? "&token=$accessToken" : "");
+  my $url = $zm . "/index.php?view=image&eid=$eid&fid=$fid" . ($accessToken ? "&token=$accessToken" : "");
+
+  # If daylight is specified, skip any events that don't occur
+  # between sunrise and sunset
+  if ($daylight)
+  {
+    my $startdt = $parser->parse_datetime($event->{StartTime});
+    my $sunrise = $sundt->sunrise_datetime($startdt);
+    my $sunset = $sundt->sunset_datetime($startdt);
+    
+    next if (DateTime->compare($startdt, $sunrise) == -1);
+    next if (DateTime->compare($startdt, $sunset) == 1);
+  }
   
   if ($view || $video)
   {
@@ -292,9 +324,6 @@ sub getEvents
   # Create a formatter that makes time strings that MySQL likes
   my $format = new DateTime::Format::Strptime(pattern => "%Y-%m-%d %H:%M:%S");
 
-  # Initialize our natural language time parser
-  my $parser = DateTime::Format::Natural->new(time_zone => 'local');
-
   # Parse the time to start looking for events and stop looking for events.
   my $from = $parser->parse_datetime($fromTime);
   my $to = $parser->parse_datetime($toTime);
@@ -418,11 +447,12 @@ sub usage
       --to=TIME          The time to stop looking for events (defaults to now)
       --infps            Number of input images per second for video mode (default 1)
       --outfps           Frame rate for output video (default 25)
-      --monitor=MID      The monitor to use (name or ID)
+      --monitor=MID      The monitor to use (name or ID). Use '!' before the monitor name
+                         or ID to exclude the monitor.
       --search=STRING    Only include events that match the search term in Notes (start
-                         with ! to invert)
+                         with ! to exclude the search string)
       --save             Save the image files in the currect directory.     
-      --type             The type of image to get (alarm, objdetect, snapshot)     
+      --type             The type of image to get (alarm, objdetect, snapshot, first, last)
       --video=STRING     Create a video from the images using the given file name
       --view             Create a temporary directory, store the images and call a viewer
       --viewer=VIEWER    Specify the program to use for viewing events (default is eog)
