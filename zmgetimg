@@ -441,6 +441,7 @@ sub usage
     usage: zmgetimg [option]
 
     options:
+      --daylight         Only include events that occur in daylight hours
       --debug=STRING     Set the debug level (debug, info, notice, warning, error)
       --help             Print this text
       --from=TIME        The time to start looking for events
