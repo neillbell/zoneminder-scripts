@@ -221,6 +221,7 @@ my %allowedValues = (
 
 # Translation from the alarm state value to text
 my %alarmState = (
+  '' => "UNKNOWN",
   0 => "IDLE",
   1 => "PREALARM",
   2 => "ALARM",
@@ -367,14 +368,10 @@ elsif ($cmd eq "getalarm")
     {
       my $monitor = $monitorsByName->{$mName};
       my $result = getMonitorAlarm($monitor->{Id});
-      my $state;
-      
-      $state =  $alarmState{$result->{status}} if $result->{status} ne "";
-      $state =  "UNKNOWN" if $result->{status} eq "";
       
       printf "%-15s %s\n",
         $monitor->{Name},
-        $state;
+        $alarmState{$result->{status}};
     }
   }
   else
@@ -383,8 +380,7 @@ elsif ($cmd eq "getalarm")
 
     my $result = getMonitorAlarm($mid);
 
-    print "  Alarm State: " . $alarmState{$result->{status}} . "\n" if $result->{status} ne "";
-    print "  Alarm State: UNKNOWN\n" if $result->{status} eq "";
+    print "  Alarm State: " . $alarmState{$result->{status}} . "\n";
   }
 }
 
@@ -960,7 +956,6 @@ sub usage
       --zmapi    The URL for the Zoneminder API. Of the form
                    https://example.org/zm/api (env var ZMAPI)
       --zmuser   The Zoneminder user name  (env var ZMUSER)
-      --zmpass   The Zoneminder password (env var ZMPASS)
       --zmpass   The Zoneminder password (env var ZMPASS)
       --debug    Set the debug level (debug, info, notice, warning, error)
 
