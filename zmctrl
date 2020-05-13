@@ -29,195 +29,209 @@ use Getopt::Long;
 use HTTP::Status qw(status_message);
 
 # Parameters that are allowed to be read from monitors
-my @monitorGetParams = (
-  "AlarmFrameCount",
-  "AlarmMaxFPS",
-  "AlarmRefBlendPerc",
-  "AnalysisFPSLimit",
-  "AnalysisUpdateDelay",
-  "ArchivedEventDiskSpace",
-  "ArchivedEvents",
-  "AutoStopTimeout",
-  "Brightness",
-  "Channel",
-  "Colour",
-  "Colours",
-  "Contrast",
-  "ControlAddress",
-  "ControlDevice",
-  "ControlId",
-  "Controllable",
-  "DayEventDiskSpace",
-  "DayEvents",
-  "DefaultRate",
-  "DefaultScale",
-  "Deinterlacing",
-  "Device",
-  "Enabled",
-  "EncoderParameters",
-  "EventPrefix",
-  "Exif",
-  "FPSReportInterval",
-  "Format",
-  "FrameSkip",
-  "Function",
-  "Height",
-  "Host",
-  "HourEventDiskSpace",
-  "HourEvents",
-  "Hue",
-  "Id",
-  "ImageBufferCount",
-  "LabelFormat",
-  "LabelSize",
-  "LabelX",
-  "LabelY",
-  "LinkedMonitors",
-  "MaxFPS",
-  "Method",
-  "MonthEventDiskSpace",
-  "MonthEvents",
-  "MotionFrameSkip",
-  "Name",
-  "Options",
-  "Orientation",
-  "OutputCodec",
-  "OutputContainer",
-  "Palette",
-  "Pass",
-  "Path",
-  "Port",
-  "PostEventCount",
-  "PreEventCount",
-  "Protocol",
-  "RTSPDescribe",
-  "RecordAudio",
-  "RefBlendPerc",
-  "Refresh",
-  "ReturnDelay",
-  "ReturnLocation",
-  "SaveJPEGs",
-  "SectionLength",
-  "Sequence",
-  "ServerId",
-  "SignalCheckColour",
-  "SignalCheckPoints",
-  "StorageId",
-  "StreamReplayBuffer",
-  "Status",
-  "SubPath",
-  "TotalEventDiskSpace",
-  "TotalEvents",
-  "TrackDelay",
-  "TrackMotion",
-  "Triggers",
-  "Type",
-  "User",
-  "V4LCapturesPerFrame",
-  "V4LMultiBuffer",
-  "VideoWriter",
-  "WarmupCount",
-  "WebColour",
-  "WeekEventDiskSpace",
-  "WeekEvents",
-  "Width",
-  "ZoneCount"
+my %monitorGetParams;
+$monitorGetParams{$_} = 1 for qw(
+  AlarmFrameCount
+  AlarmMaxFPS
+  AlarmRefBlendPerc
+  AnalysisFPSLimit
+  AnalysisUpdateDelay
+  ArchivedEventDiskSpace
+  ArchivedEvents
+  AutoStopTimeout
+  Brightness
+  Channel
+  Colour
+  Colours
+  Contrast
+  ControlAddress
+  ControlDevice
+  ControlId
+  Controllable
+  DayEventDiskSpace
+  DayEvents
+  DefaultRate
+  DefaultScale
+  Deinterlacing
+  Device
+  Enabled
+  EncoderParameters
+  EventPrefix
+  Exif
+  FPSReportInterval
+  Format
+  FrameSkip
+  Function
+  Height
+  Host
+  HourEventDiskSpace
+  HourEvents
+  Hue
+  Id
+  ImageBufferCount
+  LabelFormat
+  LabelSize
+  LabelX
+  LabelY
+  LinkedMonitors
+  MaxFPS
+  Method
+  MonthEventDiskSpace
+  MonthEvents
+  MotionFrameSkip
+  Name
+  Options
+  Orientation
+  OutputCodec
+  OutputContainer
+  Palette
+  Pass
+  Path
+  Port
+  PostEventCount
+  PreEventCount
+  Protocol
+  RTSPDescribe
+  RecordAudio
+  RefBlendPerc
+  Refresh
+  ReturnDelay
+  ReturnLocation
+  SaveJPEGs
+  SectionLength
+  Sequence
+  ServerId
+  SignalCheckColour
+  SignalCheckPoints
+  StorageId
+  StreamReplayBuffer
+  Status
+  SubPath
+  TotalEventDiskSpace
+  TotalEvents
+  TrackDelay
+  TrackMotion
+  Triggers
+  Type
+  User
+  V4LCapturesPerFrame
+  V4LMultiBuffer
+  VideoWriter
+  WarmupCount
+  WebColour
+  WeekEventDiskSpace
+  WeekEvents
+  Width
+  ZoneCount
   );
 
 # Parameters that are allowed to be read from zones
-my @zoneGetParams = (
-  "AlarmRGB",
-  "Area",
-  "CheckMethod",
-  "Coords",
-  "ExtendAlarmFrames",
-  "FilterX",
-  "FilterY",
-  "Id",
-  "MaxAlarmPixels",
-  "MaxBlobPixels",
-  "MaxBlobs",
-  "MaxFilterPixels",
-  "MaxPixelThreshold",
-  "MinAlarmPixels",
-  "MinBlobPixels",
-  "MinBlobs",
-  "MinFilterPixels",
-  "MinPixelThreshold",
-  "MonitorId",
-  "Name",
-  "NumCoords",
-  "OverloadFrames",
-  "Type",
-  "Units"
+my %zoneGetParams;
+$zoneGetParams{$_} = 1 for qw(
+  AlarmRGB
+  Area
+  CheckMethod
+  Coords
+  ExtendAlarmFrames
+  FilterX
+  FilterY
+  Id
+  MaxAlarmPixels
+  MaxBlobPixels
+  MaxBlobs
+  MaxFilterPixels
+  MaxPixelThreshold
+  MinAlarmPixels
+  MinBlobPixels
+  MinBlobs
+  MinFilterPixels
+  MinPixelThreshold
+  MonitorId
+  Name
+  NumCoords
+  OverloadFrames
+  Type
+  Units
   );
 
 # Parameters that are allowed to be written to monitors
-my @monitorSetParams = (
-  "AlarmFrameCount",
-  "Enabled",
-  "EncoderParameters",
-  "Function",
-  "Name",
-  "Orientation",
+my %monitorSetParams;
+$monitorSetParams{$_} = 1 for qw(
+  AlarmFrameCount
+  Enabled
+  EncoderParameters
+  Function
+  Name
+  Orientation
 );  
 
 # Parameters that are allowed to be written to zones
-my @zoneSetParams = (
-  "CheckMethod",
-  "ExtendAlarmFrames",
-  "MaxAlarmPixels",
-  "MaxBlobs",
-  "MaxBlobPixels",
-  "MaxFilterPixels",
-  "MaxPixelThreshold",
-  "MinAlarmPixels",
-  "MinBlobs",
-  "MinBlobPixels",
-  "MinFilterPixels",
-  "MinPixelThreshold",
-  "Name",
-  "OverloadFrames",
-  "Type",
-  "Units",
+my %zoneSetParams;
+$zoneSetParams{$_} = 1 for qw(
+  CheckMethod
+  ExtendAlarmFrames
+  MaxAlarmPixels
+  MaxBlobs
+  MaxBlobPixels
+  MaxFilterPixels
+  MaxPixelThreshold
+  MinAlarmPixels
+  MinBlobs
+  MinBlobPixels
+  MinFilterPixels
+  MinPixelThreshold
+  Name
+  OverloadFrames
+  Type
+  Units
 );
 
 # Zone parameters that are written and read as percentages
-my %zonePercentParams = (
-  "MaxAlarmPixels" => 1,
-  "MaxFilterPixels" => 1,
-  "MaxBlobPixels" => 1,
-  "MinAlarmPixels" => 1,
-  "MinFilterPixels" => 1,
-  "MinBlobPixels" => 1,
-);
+my %zonePercentParams;
+$zonePercentParams{$_} = 1 for qw(
+  MaxAlarmPixels
+  MaxFilterPixels
+  MaxBlobPixels
+  MinAlarmPixels
+  MinFilterPixels
+  MinBlobPixels
+  );
 
 # The allowed values for parameters that require a text value
-my %allowedValues = (
-  "Function" => {"None" => 1,
-                 "Monitor" => 1, 
-                 "Modect" => 1, 
-                 "Record" => 1, 
-                 "Mocord" => 1, 
-                 "Nodect" => 1},
-  "Type" => {"Active" => 1,
-             "Inclusive" => 1,
-             "Exclusive" => 1,
-             "Preclusive" => 1,
-             "Inactive" => 1,
-             "Privacy" => 1},
-  "CheckMethod" => {"AlarmedPixels" => 1,
-                    "FilteredPixels" => 1,
-                    "Blobs" => 1},
-  "Orientation" => {"0" => 1,
-                    "90" => 1,
-                    "180" => 1,
-                    "270" => 1,
-                    "hori" => 1,
-                    "vert" => 1},
-  "Units" => {"Percent" => 1,
-              "Pixels" => 1},
-);
+my %allowedValues;
+$allowedValues{Function}{$_} = 1 for qw(
+  None
+  Monitor 
+  Modect 
+  Record 
+  Mocord
+  Nodect
+  );
+$allowedValues{Type}{$_} = 1 for qw(
+  Active
+  Inclusive
+  Exclusive
+  Preclusive
+  Inactive
+  Privacy
+  );
+$allowedValues{CheckMethod}{$_} = 1 for qw(
+  AlarmedPixels
+  FilteredPixels
+  Blobs"
+  );
+$allowedValues{Orientation}{$_} = 1 for qw(
+  ROTATE_0
+  ROTATE_90
+  ROTATE_180
+  ROTATE_270
+  FLIP_HORI
+  FLIP_VERT
+  );
+$allowedValues{Units}{$_} = 1 for qw(
+  Percent
+  Pixels
+  );
 
 # Translation from the alarm state value to text
 my %alarmState = (
@@ -230,29 +244,25 @@ my %alarmState = (
   );
 
 # Log levels
-my %logLevel = (
-  debug => 1,
-  info => 1, 
-  notice => 1,
-  warning => 1,
-  error => 1
+my %logLevel;
+$logLevel{$_} = 1 for qw(
+  debug
+  info 
+  notice
+  warning
+  error
   );
 
-my $debug = 'error';
+my $logLevel = 'error';
 my $zmapi = $ENV{ZMAPI};
 my $zmuser = $ENV{ZMUSER};
 my $zmpass = $ENV{ZMPASS};
-my %monitorGetParams;
-my %zoneGetParams;
-my %monitorSetParams;
-my %zoneSetParams;
 my $monitorsById;
 my $monitorsByName;
 
-
 usage() unless @ARGV;
 
-GetOptions("debug=s" => \$debug,
+GetOptions("log=s" => \$logLevel,
            "zmapi=s" => \$zmapi,
            "zmuser=s"  => \$zmuser,
            "zmpass=s"  => \$zmpass,
@@ -260,21 +270,16 @@ GetOptions("debug=s" => \$debug,
            ) or usage();
 
 Log::Any::Adapter->set('Screen',
-                       min_level => $debug,
+                       min_level => $logLevel,
                        stderr    => 1
   );
 
 die "zmapi address not specifified\n" unless $zmapi;
 die "zmuser not specified\n" unless $zmuser;
 die "zmpass not specified\n" unless $zmpass;
-die "debug must be one of " . join(", ", keys %logLevel) . "\n" if !$logLevel{$debug};
+die "debug must be one of " . join(", ", keys %logLevel) . "\n" if !$logLevel{$logLevel};
 
-# Initialize hashes for parameter names
-@monitorGetParams{@monitorGetParams} = @monitorGetParams;
-@zoneGetParams{@zoneGetParams} = @zoneGetParams;
-@monitorSetParams{@monitorSetParams} = @monitorSetParams;
-@zoneSetParams{@zoneSetParams} = @zoneSetParams;
-
+# Create the web agent
 my $agent = WWW::Mechanize->new(autocheck => 0);
 
 # Log into Zoneminder.
@@ -957,7 +962,7 @@ sub usage
                    https://example.org/zm/api (env var ZMAPI)
       --zmuser   The Zoneminder user name  (env var ZMUSER)
       --zmpass   The Zoneminder password (env var ZMPASS)
-      --debug    Set the debug level (debug, info, notice, warning, error)
+      --log      Set the log level (debug, info, notice, warning, error)
 
     notes:
       Zones is a special monitor parameter that will return a list of all zones.
