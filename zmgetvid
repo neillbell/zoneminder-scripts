@@ -23,15 +23,16 @@ use LWP::Simple qw/ getstore is_error /;
 use File::Temp qw/ tempfile tempdir /;
 
 # Log levels
-my %logLevel = (
-  debug => 1,
-  info => 1, 
-  notice => 1,
-  warning => 1,
-  error => 1
+my %logLevel;
+$logLevel{$_} = 1 for qw(
+  debug
+  info 
+  notice
+  warning
+  error
   );
 
-my $debug = 'error';
+my $logLevel = 'error';
 my $savetmp;
 my $zmapi = $ENV{ZMAPI};
 my $zmuser = $ENV{ZMUSER};
@@ -59,7 +60,7 @@ usage() unless @ARGV;
   
 Getopt::Long::Configure();
 
-GetOptions("debug=s" => \$debug,
+GetOptions("log=s" => \$logLevel,
            "savetmp" => \$savetmp,
            "zmapi=s" => \$zmapi,
            "zmuser=s"  => \$zmuser,
@@ -76,11 +77,11 @@ GetOptions("debug=s" => \$debug,
            ) or usage();
 
 Log::Any::Adapter->set('Screen',
-                       min_level => $debug,
+                       min_level => $logLevel,
                        stderr    => 1
   );
 
-die "debug must be one of " . join(", ", keys %logLevel) . "\n" if !$logLevel{$debug};
+die "log must be one of " . join(", ", keys %logLevel) . "\n" if !$logLevel{$logLevel};
 die "ZM API address not specifified\n" unless $zmapi;
 die "ZM user not specified\n" unless $zmuser;
 die "ZM password not specified\n" unless $zmpass;
@@ -133,7 +134,7 @@ for my $event (@events)
   my $eid = $event->{Id};
   my $monitor = $monitorsById->{$mid};
   my $monName = $monitor->{Name};
-  my $from = $event->{StartTime};
+  my $from = $event->{StartDateTime};
 
   # If the user didn't specify an output file name, then make one up
   if (!defined $outputFile)
@@ -292,8 +293,8 @@ sub getEvents
   # Build the JSON URL to send to ZoneMinder
   my $url = $zmapi . "/events/index";
 
-  $url .= "/StartTime>=:" . $format->format_datetime($from);
-  $url .= "/StartTime<=:" . $format->format_datetime($to);
+  $url .= "/StartDateTime>=:" . $format->format_datetime($from);
+  $url .= "/StartDateTime<=:" . $format->format_datetime($to);
 
   if (@monitorKeys)
   {
@@ -355,7 +356,7 @@ sub getEvents
 
   #print "url = $url\n";
   
-  $url .= ".json?&sort=StartTime&direction=asc";
+  $url .= ".json?&sort=StartDateTime&direction=asc";
 
   my $fullUrl = $url . "&page=1";
 
@@ -401,7 +402,7 @@ sub usage
     usage: zmgetvid [option]
 
     options:
-      --debug=STRING     Set the debug level (debug, info, notice, warning, error)
+      --log=STRING       Set the log level (debug, info, notice, warning, error)
       --help             Print this text
       --from=TIME        The time to start looking for events
       --to=TIME          The time to stop looking for events (defaults to now)
@@ -414,7 +415,7 @@ sub usage
       --speed=FLOAT      A speed multiplier. Will re-encode instead of copy.
       --savetmp          Save temporary files.
       --transpose=INT    Transpose the output video:
-                           0: 90CounterCLockwise and Vertical Flip
+                           0: 90CounterClockwise and Vertical Flip
                            1: 90Clockwise
                            2: 90CounterClockwise
                            3: 90Clockwise and Vertical Flip
