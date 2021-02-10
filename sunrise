@@ -95,6 +95,7 @@ sub usage
       --sunrise         Print the time of sunrise (default)
       --sunset          Print the time of sunset
       --timezone name   The timezone under consideration (defaults to 'local')
+                        (env var SUNRISE_TZ)
 
     example:
 
