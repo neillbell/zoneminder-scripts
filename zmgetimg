@@ -25,15 +25,16 @@ use LWP::Simple qw/ getstore is_error /;
 use File::Temp qw/ tempfile tempdir /;
 
 # Log levels
-my %logLevel = (
-  debug => 1,
-  info => 1, 
-  notice => 1,
-  warning => 1,
-  error => 1
+my %logLevel;
+$logLevel{$_} = 1 for qw(
+  debug
+  info 
+  notice
+  warning
+  error
   );
 
-my $debug = 'error';
+my $logLevel = 'error';
 my $savetmp;
 my $view;
 my $save;
@@ -56,11 +57,14 @@ my $monitorsById;
 my $monitorsByName;
 my @events;
 
-my %types = ("alarm" => 1,
-             "objdetect" => 1,
-             "first" => 1,
-             "last" => 1,
-             "snapshot" => 1);
+my %types;
+$types{$_} = 1 for qw(
+  alarm
+  objdetect
+  first
+  last
+  snapshot
+  );
 
 # Initialize our natural language time parser
 my $parser = DateTime::Format::Natural->new(time_zone => 'local');
@@ -70,7 +74,7 @@ usage() unless @ARGV;
 
 Getopt::Long::Configure();
 
-GetOptions("debug=s" => \$debug,
+GetOptions("log=s" => \$logLevel,
            "lat=f" => \$latitude,
            "long=f" => \$longitude,
            "savetmp" => \$savetmp,
@@ -93,11 +97,11 @@ GetOptions("debug=s" => \$debug,
            ) or usage();
   
 Log::Any::Adapter->set('Screen',
-                       min_level => $debug,
+                       min_level => $logLevel,
                        stderr    => 1
   );
 
-die "debug must be one of " . join(", ", keys %logLevel) . "\n" if !$logLevel{$debug};
+die "log must be one of " . join(", ", keys %logLevel) . "\n" if !$logLevel{$logLevel};
 die "ZM API address not specifified\n" unless $zmapi;
 die "ZM user not specified\n" unless $zmuser;
 die "ZM password not specified\n" unless $zmpass;
@@ -140,7 +144,7 @@ my $tmpdir;
 
 $tmpdir = tempdir( CLEANUP => $savetmp ? 0 : 1) if $view || $video;
 
-# Initialize our sumrise calculator
+# Initialize our sunrise calculator
 my $sundt = DateTime::Event::Sunrise ->new(latitude  => $latitude,
                                            longitude => $longitude,
                                            precise   => 0)
@@ -152,7 +156,7 @@ for my $event (@events)
   my $eid = $event->{Id};
   my $monitor = $monitorsById->{$mid};
   my $monName = $monitor->{Name};
-  my $from = $event->{StartTime};
+  my $from = $event->{StartDateTime};
 
   printf "%-15s%-8s%19s: %s\n", $monName, $event->{Id}, $from, $event->{Notes};
 
@@ -164,7 +168,7 @@ for my $event (@events)
   # between sunrise and sunset
   if ($daylight)
   {
-    my $startdt = $parser->parse_datetime($event->{StartTime});
+    my $startdt = $parser->parse_datetime($event->{StartDateTime});
     my $sunrise = $sundt->sunrise_datetime($startdt);
     my $sunset = $sundt->sunset_datetime($startdt);
     
@@ -333,8 +337,8 @@ sub getEvents
   # Build the JSON URL to send to ZoneMinder
   my $url = $zmapi . "/events/index";
 
-  $url .= "/StartTime>=:" . $format->format_datetime($from);
-  $url .= "/StartTime<=:" . $format->format_datetime($to);
+  $url .= "/StartDateTime>=:" . $format->format_datetime($from);
+  $url .= "/StartDateTime<=:" . $format->format_datetime($to);
 
   if (@monitorKeys)
   {
@@ -394,7 +398,7 @@ sub getEvents
     }
   }
   
-  $url .= ".json?&sort=StartTime&direction=asc";
+  $url .= ".json?&sort=StartDateTime&direction=asc";
 
   my $fullUrl = $url . "&page=$page";
 
@@ -442,18 +446,18 @@ sub usage
 
     options:
       --daylight         Only include events that occur in daylight hours
-      --debug=STRING     Set the debug level (debug, info, notice, warning, error)
+      --log=STRING       Set the log level (debug, info, notice, warning, error)
       --help             Print this text
       --from=TIME        The time to start looking for events
       --to=TIME          The time to stop looking for events (defaults to now)
-      --infps            Number of input images per second for video mode (default 1)
-      --outfps           Frame rate for output video (default 25)
+      --infps=FPS        Number of input images per second for video mode (default 1)
+      --outfps=FPS       Frame rate for output video (default 25)
       --monitor=MID      The monitor to use (name or ID). Use '!' before the monitor name
                          or ID to exclude the monitor.
       --search=STRING    Only include events that match the search term in Notes (start
                          with ! to exclude the search string)
       --save             Save the image files in the currect directory.     
-      --type             The type of image to get (alarm, objdetect, snapshot, first, last)
+      --type=STRING      The type of image to get (alarm, objdetect, snapshot (default), first, last)
       --video=STRING     Create a video from the images using the given file name
       --view             Create a temporary directory, store the images and call a viewer
       --viewer=VIEWER    Specify the program to use for viewing events (default is eog)
