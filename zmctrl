@@ -5,8 +5,8 @@
 # A script to provide basic command line access to the Zoneminder API. See
 # the usage function at the bottom for usage instructions.
 #
-# The parameters that can be set are limited to those listed in @monitorSetParams
-# and @zoneSetParams. New parameters can easily be added by editing these
+# The parameters that can be set are limited to those listed in %monitorSetParams
+# and %zoneSetParams. New parameters can easily be added by editing these
 # lists. Editing %allowedValues can be useful for checking that the correct
 # values are used for parameters that take text values.
 #
@@ -27,6 +27,8 @@ use JSON;
 use WWW::Mechanize;
 use Getopt::Long;
 use HTTP::Status qw(status_message);
+use Math::Polygon;
+use Math::Round;
 
 # Parameters that are allowed to be read from monitors
 my %monitorGetParams;
@@ -161,6 +163,7 @@ $monitorSetParams{$_} = 1 for qw(
   Enabled
   EncoderParameters
   Function
+  ImageBufferCount
   Name
   Orientation
 );  
@@ -168,8 +171,12 @@ $monitorSetParams{$_} = 1 for qw(
 # Parameters that are allowed to be written to zones
 my %zoneSetParams;
 $zoneSetParams{$_} = 1 for qw(
+  Area
   CheckMethod
+  Coords
   ExtendAlarmFrames
+  FilterX
+  FilterY
   MaxAlarmPixels
   MaxBlobs
   MaxBlobPixels
@@ -277,7 +284,7 @@ Log::Any::Adapter->set('Screen',
 die "zmapi address not specifified\n" unless $zmapi;
 die "zmuser not specified\n" unless $zmuser;
 die "zmpass not specified\n" unless $zmpass;
-die "debug must be one of " . join(", ", keys %logLevel) . "\n" if !$logLevel{$logLevel};
+die "log must be one of " . join(", ", keys %logLevel) . "\n" if !$logLevel{$logLevel};
 
 # Create the web agent
 my $agent = WWW::Mechanize->new(autocheck => 0);
@@ -312,9 +319,8 @@ if ($cmd eq "list")
 {
   print "Monitor Name     ID    Function    Enabled   Status\n";
   
-  foreach my $mName (sort { lc($a) cmp lc($b) } keys %$monitorsByName)
+  foreach my $monitor (sort { lc($a->{Name}) cmp lc($b->{Name}) } values %$monitorsByName)
   {
-    my $monitor = $monitorsByName->{$mName};
     my $status = $monitor->{Status};
 
     $status = "Unknown" if !defined $status;
@@ -342,11 +348,9 @@ elsif ($cmd eq "get")
   }
   else
   {
-    foreach my $mName (sort { lc($a) cmp lc($b) } keys %$monitorsByName)
+    foreach my $monitor (sort { lc($a->{Name}) cmp lc($b->{Name}) } values %$monitorsByName)
     {
-      my $mid = $monitorsByName->{$mName}->{Id};
-
-      getMonitorParams($mid);
+      getMonitorParams($monitor->{Id});
     }
   }
 }
@@ -369,9 +373,8 @@ elsif ($cmd eq "getalarm")
 
   if (! defined $key)
   {
-    foreach my $mName (sort { lc($a) cmp lc($b) } keys %$monitorsByName)
+    foreach my $monitor (sort { lc($a->{Name}) cmp lc($b->{Name}) } values %$monitorsByName)
     {
-      my $monitor = $monitorsByName->{$mName};
       my $result = getMonitorAlarm($monitor->{Id});
       
       printf "%-15s %s\n",
@@ -415,9 +418,8 @@ elsif ($cmd eq "getstatus")
 
   if (! defined $key)
   {
-    foreach my $mName (sort { lc($a) cmp lc($b) } keys %$monitorsByName)
+    foreach my $monitor (sort { lc($a->{Name}) cmp lc($b->{Name}) } values %$monitorsByName)
     {
-      my $monitor = $monitorsByName->{$mName};
       my $status = $monitor->{Status};
 
       $status = "Unknown" if !defined $status;
@@ -448,9 +450,11 @@ else
 # Get the alarm state for a monitor
 sub getMonitorAlarm
 {
-  my ($mid, @argv) = @_;
+  my ($mid) = @_;
   my $monitor;
 
+  $log->info("getMonitorAlarm($mid)");
+  
   $monitor = $monitorsById->{$mid};
 
   die "monitor $mid is not present\n" if !$monitor;
@@ -466,6 +470,8 @@ sub setMonitorAlarm
   my ($mid, $state) = @_;
   my $monitor;
 
+  $log->info("setMonitorAlarm($mid, $state)");
+  
   $monitor = $monitorsById->{$mid};
 
   die "monitor $mid is not present\n" if !$monitor;
@@ -494,6 +500,8 @@ sub setMonitorParam
   my ($mid, @argv) = @_;
   my $monitor;
 
+  $log->info("setMonitorParam($mid, @argv)");
+  
   $monitor = $monitorsById->{$mid};
 
   die "monitor $mid is not present\n" if !$monitor;
@@ -532,10 +540,14 @@ sub postSetMonitorParam
 {
   my ($mid, $param, $value) = @_;
 
-  my $url = $zmapi . "/monitors/$mid.json";
+  $log->info("postSetMonitorParam($mid, $param, $value)");
+  
+  my $url = $zmapi . "/monitors/$mid.json" . ($accessToken ? "?token=$accessToken" : "");
 
-  my $response = $agent->post($url . ($accessToken ? "?token=$accessToken" : ""),
-                              ["Monitor[$param]" => $value]);  
+  $log->info("post: $url");
+  $log->info("      [Monitor[$param]: $value]");
+  
+  my $response = $agent->post($url, ["Monitor[$param]" => $value]);  
 
   $log->debug("MONITOR POST: " . Dumper($response));
 
@@ -560,6 +572,8 @@ sub setZoneParam
   my $monitor;
   my $zone;
 
+  $log->info("setZoneParam($mid, $zid, @argv)");
+  
   $monitor = $monitorsById->{$mid};
 
   die "monitor $mid is not present\n" if !$monitor;
@@ -625,10 +639,14 @@ sub postSetZoneParam
 {
   my ($zid, $param, $value) = @_;
   
-  my $url = $zmapi . "/zones/$zid.json";
+  $log->info("postSetZoneParam($zid, $param, $value)");
+  
+  my $url = $zmapi . "/zones/$zid.json" . ($accessToken ? "?token=$accessToken" : "");
 
-  my $response = $agent->post($url . ($accessToken ? "?token=$accessToken" : ""),
-                              ["Zone[$param]" => $value]);  
+  $log->info("post: $url");
+  $log->info("      [Zone[$param]: $value]");
+  
+  my $response = $agent->post($url, ["Zone[$param]" => $value]);  
 
   $log->debug("ZONE POST: " . Dumper($response));
 
@@ -735,11 +753,18 @@ sub getZoneParams
   {
     for my $param (@args)
     {
-      die "$param not available for zones\n" if !$zoneGetParams{$param};
+      if ($param eq "RealArea")
+      {
+        print "  RealArea: ${\getZoneArea($zone)}\n";
+      }
+      else
+      {
+        die "$param not available for zones\n" if !$zoneGetParams{$param};
 
-      my $value = formatZoneParam($zone, $param);
+        my $value = formatZoneParam($zone, $param);
 
-      print "  $param: $value\n" if defined $value;
+        print "  $param: $value\n" if defined $value;
+      }
     }
   }
 
@@ -755,7 +780,64 @@ sub getZoneParams
       
       print "  $param: $value\n" if defined $value;
     }
+
+    print "  RealArea: ${\getZoneArea($zone)}\n";
   }
+}
+
+# Get the area of a zone
+#
+# zone: a zone object
+#
+sub getZoneArea
+{
+  my ($zone) = @_;
+  my @points;  
+
+  # Get the zone coordinates
+  my $polyStr = $zone->{Coords};
+
+  # Break the coordinate string into a list of individual
+  # point strings
+  my @pointStrs = $polyStr =~ /(\d+,\d+)/g;
+
+  # Assemble the points into a list of point references
+  for my $pointStr (@pointStrs)
+  {
+    my ($x, $y) = split(',', $pointStr);
+
+    push (@points, [$x, $y]);
+  }
+
+  # Close the polygon by reiterating the first point
+  push(@points, $points[0]);
+
+  # Create the polygon from the point list
+  my $poly = Math::Polygon->new(points => \@points);
+
+  # Make sure the polygon points are clockwise
+  $poly = $poly->clockwise();
+
+  return round($poly->area()) . " (" . getPolyString($poly) . ")";
+}
+
+# Get a string describing the points in a polygon
+#
+# poly: a polygon object
+#
+sub getPolyString
+{
+  my ($poly) = @_;
+  my $str = "";
+
+  for my $point (@{$poly->points()})
+  {
+    $str .= ($point->[0] . "," . $point->[1] . " ");
+  }
+
+  $str =~ s/\s+$//;
+
+  return $str;
 }
 
 # Fetch a zone parameter while formatting it to a percentage, if necessary.
@@ -908,7 +990,7 @@ sub getJson
   
   $url = $url . ($accessToken ? "?token=$accessToken" : "");
 
-  $log->info("url: $url");
+  $log->info("get: $url");
   
   my $response = $agent->get($url);
 
@@ -965,7 +1047,8 @@ sub usage
       --log      Set the log level (debug, info, notice, warning, error)
 
     notes:
-      Zones is a special monitor parameter that will return a list of all zones.
+      Zones is a monitor pseudo-parameter that will return a list of all zones
+      for that monitor.
     
 EOF
   exit;
