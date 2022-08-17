@@ -95,7 +95,7 @@ GetOptions("log=s" => \$logLevel,
            "daylight" => \$daylight,
            "help" => sub { usage() }
            ) or usage();
-  
+
 Log::Any::Adapter->set('Screen',
                        min_level => $logLevel,
                        stderr    => 1
@@ -169,6 +169,7 @@ for my $event (@events)
   if ($daylight)
   {
     my $startdt = $parser->parse_datetime($event->{StartDateTime});
+    die "failed StartDateTime parse: ${\$parser->error}\n" if $parser->error;
     my $sunrise = $sundt->sunrise_datetime($startdt);
     my $sunset = $sundt->sunset_datetime($startdt);
     
@@ -330,7 +331,9 @@ sub getEvents
 
   # Parse the time to start looking for events and stop looking for events.
   my $from = $parser->parse_datetime($fromTime);
+  die "failed from time parse: ${\$parser->error}\n" if $parser->error;
   my $to = $parser->parse_datetime($toTime);
+  die "failed to time parse: ${\$parser->error}\n" if $parser->error;
 
   die "start time must be before end time\n" if (DateTime->compare($from, $to) == 1);
   

@@ -20,7 +20,7 @@
 
 use strict;
 use warnings;
-use Data::Dumper;
+use Data::Dumper::Concise;
 use Log::Any qw($log);
 use Log::Any::Adapter;
 use JSON;
@@ -36,12 +36,15 @@ $monitorGetParams{$_} = 1 for qw(
   AlarmFrameCount
   AlarmMaxFPS
   AlarmRefBlendPerc
+  Analysing
   AnalysisFPSLimit
+  AnalysisSource
   AnalysisUpdateDelay
   ArchivedEventDiskSpace
   ArchivedEvents
   AutoStopTimeout
   Brightness
+  Capturing
   Channel
   Colour
   Colours
@@ -52,6 +55,10 @@ $monitorGetParams{$_} = 1 for qw(
   Controllable
   DayEventDiskSpace
   DayEvents
+  DecoderHWAccelDevice
+  DecoderHWAccelName
+  DecodingEnabled
+  DefaultCodec
   DefaultRate
   DefaultScale
   Deinterlacing
@@ -59,6 +66,8 @@ $monitorGetParams{$_} = 1 for qw(
   Enabled
   EncoderParameters
   EventPrefix
+  EventStartCommand
+  EventEndCommand
   Exif
   FPSReportInterval
   Format
@@ -71,17 +80,32 @@ $monitorGetParams{$_} = 1 for qw(
   Hue
   Id
   ImageBufferCount
+  Importance
+  JanusAudioEnabled
+  JanusEnabled
   LabelFormat
   LabelSize
   LabelX
   LabelY
+  Latitude
   LinkedMonitors
+  Longitude
+  ManufacturerId
   MaxFPS
+  MaxImageBufferCount
   Method
+  MinSectionLength
+  ModectDuringPTZ
+  ModelId
   MonthEventDiskSpace
   MonthEvents
   MotionFrameSkip
   Name
+  ONVIF_Event_Listener
+  ONVIF_URL
+  ONVIF_Username
+  ONVIF_Options
+  ONVIF_Password
   Options
   Orientation
   OutputCodec
@@ -95,11 +119,17 @@ $monitorGetParams{$_} = 1 for qw(
   Protocol
   RTSPDescribe
   RecordAudio
+  Recording
+  RecordingSource
   RefBlendPerc
   Refresh
   ReturnDelay
   ReturnLocation
+  RTSPDescribe
+  RTSPServer
+  RTSPStreamName
   SaveJPEGs
+  SecondPath
   SectionLength
   Sequence
   ServerId
@@ -115,6 +145,7 @@ $monitorGetParams{$_} = 1 for qw(
   TrackMotion
   Triggers
   Type
+  use_Amcrest_API
   User
   V4LCapturesPerFrame
   V4LMultiBuffer
@@ -160,6 +191,7 @@ $zoneGetParams{$_} = 1 for qw(
 my %monitorSetParams;
 $monitorSetParams{$_} = 1 for qw(
   AlarmFrameCount
+  Capturing
   Enabled
   EncoderParameters
   Function
@@ -206,6 +238,11 @@ $zonePercentParams{$_} = 1 for qw(
 
 # The allowed values for parameters that require a text value
 my %allowedValues;
+$allowedValues{Capturing}{$_} = 1 for qw(
+  Always
+  None
+  Ondemand
+  );
 $allowedValues{Function}{$_} = 1 for qw(
   None
   Monitor 
@@ -242,12 +279,14 @@ $allowedValues{Units}{$_} = 1 for qw(
 
 # Translation from the alarm state value to text
 my %alarmState = (
+  'false' => "UNKNOWN",
   '' => "UNKNOWN",
   0 => "IDLE",
   1 => "PREALARM",
   2 => "ALARM",
   3 => "ALERT",
-  4 => "TAPE"
+  4 => "TAPE",
+  5 => "MOCORD"
   );
 
 # Log levels
@@ -376,7 +415,7 @@ elsif ($cmd eq "getalarm")
     foreach my $monitor (sort { lc($a->{Name}) cmp lc($b->{Name}) } values %$monitorsByName)
     {
       my $result = getMonitorAlarm($monitor->{Id});
-      
+
       printf "%-15s %s\n",
         $monitor->{Name},
         $alarmState{$result->{status}};
@@ -387,6 +426,8 @@ elsif ($cmd eq "getalarm")
     my $mid = getMonitorIdByKey($key);
 
     my $result = getMonitorAlarm($mid);
+
+    $log->debug("MONITOR ALARM: " . Dumper($result));
 
     print "  Alarm State: " . $alarmState{$result->{status}} . "\n";
   }

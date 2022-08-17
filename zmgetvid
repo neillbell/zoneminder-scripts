@@ -45,7 +45,7 @@ my $speed;
 my $outputFile;
 my $monitorsById;
 my $monitorsByName;
-my $outfps = "";
+my $outfps;
 my $transpose;
 my @events;
 
@@ -85,7 +85,7 @@ die "log must be one of " . join(", ", keys %logLevel) . "\n" if !$logLevel{$log
 die "ZM API address not specifified\n" unless $zmapi;
 die "ZM user not specified\n" unless $zmuser;
 die "ZM password not specified\n" unless $zmpass;
-die "start time not specified\n" if !defined $fromTime;
+die "from time not specified\n" if !defined $fromTime;
 die "transpose must be one of " . join(", ", keys %transpositions)
   if defined $transpose and !defined $transpositions{$transpose};
 
@@ -140,7 +140,17 @@ for my $event (@events)
   if (!defined $outputFile)
   {
     $outputFile = "$from" . "_$eid" . "_$monName.mp4";
-    $outputFile =~ s/\s+/_/g;    
+    $outputFile =~ s/\s+/_/g;
+
+    my $index = 1;
+    
+    while (-e $outputFile)
+    {
+      my $ext = sprintf("%02d", $index++);
+      
+      $outputFile = "$from" . "_$eid" . "_$monName-$ext.mp4";
+      $outputFile =~ s/\s+/_/g;
+    }
   }
 
   # Print the details about the event we found.
@@ -176,8 +186,8 @@ exit if !@events;
 # Sometimes the last file doesn't get written. Sleep?
 select(undef, undef, undef, 0.25);
 
-# If there is a speed multiplier, add a filter to do that. Otherwise,
-# use the 'copy' command.
+# If there is a speed multiplier or a transpostion, add a filter to do that.
+# Otherwise, use the 'copy' command.
 my $option;
 
 if (defined $speed or defined $transpose)
@@ -203,7 +213,7 @@ else
 }
 
 # Specify the output frame rate
-$outfps = "-r $outfps" if $outfps ne "";
+$outfps = "-r $outfps" if defined $outfps;
 
 # Use ffmpeg to concatenate the videos
 my $cmd = "ffmpeg -y -hide_banner -loglevel info -f concat -safe 0 -i $fileListName $option $outfps -an $outputFile";
@@ -286,7 +296,9 @@ sub getEvents
 
   # Parse the time to start looking for events and stop looking for events.
   my $from = $parser->parse_datetime($fromTime);
+  die "failed from time parse: ${\$parser->error}\n" if $parser->error;
   my $to = $parser->parse_datetime($toTime);
+  die "failed to time parse: ${\$parser->error}\n" if $parser->error;
 
   die "start time must be before end time\n" if (DateTime->compare($from, $to) == 1);
   
