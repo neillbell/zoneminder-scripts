@@ -48,6 +48,7 @@ my $monitorsByName;
 my $outfps;
 my $transpose;
 my @events;
+my $audio;
 
 my %transpositions = (
   0 => 1,  # 90CounterCLockwise and Vertical Flip
@@ -73,6 +74,7 @@ GetOptions("log=s" => \$logLevel,
            "output=s" => \$outputFile,
            "outfps=f" => \$outfps,
            "transpose=i" => \$transpose,
+           "audio" => \$audio,
            "help" => sub { usage() }
            ) or usage();
 
@@ -88,6 +90,8 @@ die "ZM password not specified\n" unless $zmpass;
 die "from time not specified\n" if !defined $fromTime;
 die "transpose must be one of " . join(", ", keys %transpositions)
   if defined $transpose and !defined $transpositions{$transpose};
+
+$audio = $audio ? "" : "-an";
 
 $toTime = "now" if !defined $toTime;
 
@@ -213,10 +217,10 @@ else
 }
 
 # Specify the output frame rate
-$outfps = "-r $outfps" if defined $outfps;
+$outfps = defined $outfps ? "-r $outfps" : "";
 
 # Use ffmpeg to concatenate the videos
-my $cmd = "ffmpeg -y -hide_banner -loglevel info -f concat -safe 0 -i $fileListName $option $outfps -an $outputFile";
+my $cmd = "ffmpeg -y -hide_banner -loglevel info -f concat -safe 0 -i $fileListName $option $outfps $audio $outputFile";
 
 $log->info("executing: $cmd");
 
@@ -414,6 +418,7 @@ sub usage
     usage: zmgetvid [option]
 
     options:
+      --audio            Include the audio track
       --log=STRING       Set the log level (debug, info, notice, warning, error)
       --help             Print this text
       --from=TIME        The time to start looking for events
